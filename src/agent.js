@@ -74,9 +74,21 @@ function buildToolsWithCache(specs) {
   return tools;
 }
 
+// Split the system prompt at the temporal block so the static prefix
+// (persona + identity + constraints + definitions + tools) stays cacheable
+// across turns and only the per-turn timestamp invalidates the second block.
 function buildSystemBlocks() {
+  const full = buildSystemPrompt();
+  const splitMarker = '\n\n[TIME AND MARKET SESSION]';
+  const idx = full.indexOf(splitMarker);
+  if (idx === -1) {
+    return [{ type: 'text', text: full, cache_control: { type: 'ephemeral' } }];
+  }
+  const stable = full.slice(0, idx);
+  const temporal = full.slice(idx + 2);
   return [
-    { type: 'text', text: buildSystemPrompt(), cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: temporal },
   ];
 }
 

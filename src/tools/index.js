@@ -13,9 +13,18 @@ import * as vixFamily from './vixFamily.js';
 import * as ivPercentile from './ivPercentile.js';
 import * as gexLevels from './gexLevels.js';
 import * as termStructure from './termStructure.js';
+import * as stockHistory from './stockHistory.js';
+import * as gexHistory from './gexHistory.js';
 import * as searchChatHistory from './searchChatHistory.js';
 
-const SUPABASE_MODULES = [vixFamily, ivPercentile, gexLevels, termStructure];
+const SUPABASE_MODULES = [
+  vixFamily,
+  ivPercentile,
+  gexLevels,
+  termStructure,
+  stockHistory,
+  gexHistory,
+];
 const MEMORY_MODULES = [searchChatHistory];
 
 function activeModules() {

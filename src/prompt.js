@@ -40,6 +40,45 @@ The data backend's vendor terms permit redistributing computed and aggregated me
 const NO_TOOLS_BLOCK = `[NO LIVE DATA AVAILABLE]
 The bot has no live market-data tools configured. Answer from model knowledge alone. When a question turns on a current number, state that a live read is required and stop. Do not invent a number. Conceptual, structural, and strategy-design questions are unaffected.`;
 
+// Live timestamp block. Refreshed every call so the model knows today's
+// date and the current market session (US equity hours: regular open at
+// 09:30 ET, close at 16:00 ET; pre-market 04:00-09:30; after-hours
+// 16:00-20:00). This sits OUTSIDE the cache-control breakpoint because
+// it changes per turn; the static persona/constraints/definitions stay
+// cacheable above it.
+function buildTemporalContext() {
+  const now = new Date();
+  const nyFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: false,
+  });
+  const dayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+  });
+  const tsParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const hour = parseInt(tsParts.find((p) => p.type === 'hour').value, 10);
+  const minute = parseInt(tsParts.find((p) => p.type === 'minute').value, 10);
+  const minutesSinceMidnight = hour * 60 + minute;
+  const day = dayFormatter.format(now);
+  const isWeekday = !['Sat', 'Sun'].includes(day);
+
+  let session;
+  if (!isWeekday) session = 'weekend (US equity market closed)';
+  else if (minutesSinceMidnight < 4 * 60) session = 'overnight (US equity market closed)';
+  else if (minutesSinceMidnight < 9 * 60 + 30) session = 'pre-market (US equity market in pre-open)';
+  else if (minutesSinceMidnight < 16 * 60) session = 'regular session (US equity market open)';
+  else if (minutesSinceMidnight < 20 * 60) session = 'after-hours (US equity market post-close)';
+  else session = 'overnight (US equity market closed)';
+
+  return `[TIME AND MARKET SESSION]
+Current date and time in New York: ${nyFormatter.format(now)} (${day}). Market session: ${session}. SPX 0DTE pricing pulses every five minutes during the regular session and ceases at the close; daily EOD readings refresh after 16:00 ET. When the user references "today" or "right now", reason from this timestamp. Note that intraday tools may return the most recent successful run, which can be stale by a session if the market is closed.`;
+}
+
 export function buildSystemPrompt() {
   const blocks = [
     CORE_PERSONA,
@@ -47,6 +86,7 @@ export function buildSystemPrompt() {
     BEHAVIORAL_CONSTRAINTS,
     SITE_DEFINITIONS,
     config.supabase.enabled ? TOOLS_BLOCK : NO_TOOLS_BLOCK,
+    buildTemporalContext(),
   ];
   return blocks.join('\n\n').replace(/MODEL_PLACEHOLDER/g, config.anthropic.model);
 }
