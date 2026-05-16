@@ -16,6 +16,8 @@ import * as termStructure from './termStructure.js';
 import * as stockHistory from './stockHistory.js';
 import * as gexHistory from './gexHistory.js';
 import * as searchChatHistory from './searchChatHistory.js';
+import * as queryDuckdb from './queryDuckdb.js';
+import { isReady as duckdbReady } from '../duckdb.js';
 
 const SUPABASE_MODULES = [
   vixFamily,
@@ -26,11 +28,13 @@ const SUPABASE_MODULES = [
   gexHistory,
 ];
 const MEMORY_MODULES = [searchChatHistory];
+const DUCKDB_MODULES = [queryDuckdb];
 
 function activeModules() {
   const mods = [];
   if (config.supabase.enabled) mods.push(...SUPABASE_MODULES);
   if (config.voyage.enabled) mods.push(...MEMORY_MODULES);
+  if (duckdbReady()) mods.push(...DUCKDB_MODULES);
   return mods;
 }
 
@@ -39,7 +43,7 @@ export function getToolSpecs() {
 }
 
 const EXECUTORS = Object.fromEntries(
-  [...SUPABASE_MODULES, ...MEMORY_MODULES].map((m) => [m.spec.name, m.execute])
+  [...SUPABASE_MODULES, ...MEMORY_MODULES, ...DUCKDB_MODULES].map((m) => [m.spec.name, m.execute])
 );
 
 export async function executeTool(name, input) {

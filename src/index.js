@@ -4,13 +4,16 @@
 import { buildClient } from './bot.js';
 import { config } from './config.js';
 import { startBackgroundEmbedder, stopBackgroundEmbedder } from './embedder.js';
+import { initDuckDB, closeDuckDB } from './duckdb.js';
 
+await initDuckDB();
 const client = buildClient();
 startBackgroundEmbedder();
 
 function shutdown() {
   console.log('\nShutting down...');
   stopBackgroundEmbedder();
+  closeDuckDB().catch(() => {});
   client.destroy().finally(() => process.exit(0));
 }
 process.on('SIGINT', shutdown);
