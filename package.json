@@ -1,0 +1,19 @@
+{
+  "name": "trading-discord-bot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "A Discord bot powered by Claude Sonnet 4.6 that answers strategic trading questions, with optional Anthropic tool-use access to a live market-data backend (default: aigamma.com Supabase).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node --env-file=.env.local src/index.js",
+    "register": "node --env-file=.env.local scripts/register-commands.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "discord.js": "^14.16.0"
+  }
+}

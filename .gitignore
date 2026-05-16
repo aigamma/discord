@@ -1,0 +1,25 @@
+# Dependencies and build outputs
+node_modules
+dist
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local credentials and caches
+creds.txt
+.claude/
+tmp/
