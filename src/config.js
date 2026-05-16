@@ -20,6 +20,9 @@ function readEnv() {
   const supabaseKey = (process.env.SUPABASE_KEY || '').trim();
   const supabaseEnabled = Boolean(supabaseUrl && supabaseKey);
 
+  const voyageKey = (process.env.VOYAGE_API_KEY || '').trim();
+  const voyageEnabled = Boolean(voyageKey);
+
   return {
     discord: {
       token: process.env.DISCORD_BOT_TOKEN.trim(),
@@ -34,6 +37,16 @@ function readEnv() {
       enabled: supabaseEnabled,
       url: supabaseUrl,
       key: supabaseKey,
+    },
+    voyage: {
+      enabled: voyageEnabled,
+      apiKey: voyageKey,
+      model: (process.env.VOYAGE_MODEL || 'voyage-3').trim(),
+    },
+    memory: {
+      dbPath: (process.env.CONVERSATION_DB_PATH || './data/conversation.db').trim(),
+      shortTermTurns: parseInt(process.env.SHORT_TERM_CONTEXT_TURNS || '12', 10),
+      shortTermMinutes: parseInt(process.env.SHORT_TERM_CONTEXT_MINUTES || '60', 10),
     },
   };
 }
