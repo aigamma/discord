@@ -20,9 +20,42 @@ import { loadShortTermContext, persistMessage, persistTurn } from './memory.js';
 import { priceUsage } from './pricing.js';
 
 const MAX_TOOL_ROUNDS = 8;
-const MAX_TOKENS = 4096;
+const RETRY_ATTEMPTS = 3;
+const RETRY_BACKOFF_MS = [1000, 3000, 8000];
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+
+// Anthropic's server-side tools sit alongside the bot's own tools. The model
+// invokes them inside a single API call; results come back as content blocks
+// without round-tripping through our executeTool. We just register them.
+function getServerTools() {
+  const out = [];
+  if (config.anthropic.webSearchEnabled) {
+    out.push({ type: 'web_search_20250305', name: 'web_search' });
+  }
+  if (config.anthropic.webFetchEnabled) {
+    out.push({ type: 'web_fetch_20250910', name: 'web_fetch' });
+  }
+  return out;
+}
+
+async function withRetry(fn) {
+  let lastErr;
+  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const status = err?.status || err?.response?.status;
+      const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 529;
+      if (!transient || attempt === RETRY_ATTEMPTS - 1) throw err;
+      const wait = RETRY_BACKOFF_MS[attempt] || 5000;
+      console.warn(`[agent] transient error ${status}; retrying in ${wait}ms`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
+}
 
 function accumulateUsage(acc, usage) {
   if (!usage) return acc;
@@ -34,8 +67,9 @@ function accumulateUsage(acc, usage) {
 }
 
 function buildToolsWithCache(specs) {
-  if (!specs.length) return undefined;
-  const tools = specs.map((s) => ({ ...s }));
+  const all = [...specs, ...getServerTools()];
+  if (!all.length) return undefined;
+  const tools = all.map((s) => ({ ...s }));
   tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: 'ephemeral' } };
   return tools;
 }
@@ -79,13 +113,13 @@ export async function answer({
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await client.messages.create({
+      const response = await withRetry(() => client.messages.create({
         model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: config.anthropic.maxTokens,
         system: systemBlocks,
         tools,
         messages,
-      });
+      }));
 
       accumulateUsage(usage, response.usage);
       stopReason = response.stop_reason;

@@ -1,11 +1,7 @@
 // One-off script: register the bot's slash commands with Discord. Run after
-// the first install and whenever you change the command surface.
+// install and whenever the command surface changes.
 //
 //   npm run register
-//
-// If DISCORD_GUILD_ID is set in .env.local, commands register to that guild
-// only and propagate instantly. Otherwise they register globally and
-// propagate within ~1 hour to every server the bot joins.
 
 import { REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { config } from '../src/config.js';
@@ -15,16 +11,35 @@ const commands = [
     .setName('ask')
     .setDescription('Ask Claude a strategic trading question')
     .addStringOption((opt) =>
-      opt
-        .setName('question')
-        .setDescription('Your question')
-        .setRequired(true)
-        .setMaxLength(1500)
+      opt.setName('question').setDescription('Your question').setRequired(true).setMaxLength(1500)
     )
     .toJSON(),
   new SlashCommandBuilder()
     .setName('forget')
     .setDescription("Clear this channel's short-term conversation context window")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('usage')
+    .setDescription('Show recent token + cost summary (ephemeral)')
+    .addIntegerOption((opt) =>
+      opt.setName('hours').setDescription('Lookback window in hours (default 24)').setMinValue(1).setMaxValue(720)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('search')
+    .setDescription('Search prior conversations by meaning')
+    .addStringOption((opt) =>
+      opt.setName('query').setDescription('What are you looking for?').setRequired(true).setMaxLength(500)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('scope')
+        .setDescription('Which conversations to search')
+        .addChoices(
+          { name: 'this channel only', value: 'channel' },
+          { name: 'every channel', value: 'all' }
+        )
+    )
     .toJSON(),
 ];
 

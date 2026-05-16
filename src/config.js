@@ -32,6 +32,9 @@ function readEnv() {
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY.trim(),
       model: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6').trim(),
+      maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10),
+      webSearchEnabled: (process.env.ENABLE_WEB_SEARCH || 'true').toLowerCase() !== 'false',
+      webFetchEnabled: (process.env.ENABLE_WEB_FETCH || 'true').toLowerCase() !== 'false',
     },
     supabase: {
       enabled: supabaseEnabled,

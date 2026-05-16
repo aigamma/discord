@@ -228,3 +228,45 @@ export function* iterEmbeddedUserMessages() {
 export function getAssistantResponseFor(userMessageId) {
   return selectAssistantForUser.get(userMessageId);
 }
+
+// Aggregate usage stats over a rolling window (default 24h) for the /usage
+// command. Returns total turns, tokens, cost, plus a per-user breakdown.
+const selectUsageSummary = db.prepare(`
+  SELECT
+    COUNT(*)            AS turns,
+    SUM(input_tokens)   AS input_tokens,
+    SUM(output_tokens)  AS output_tokens,
+    SUM(cache_creation_input_tokens) AS cache_creation_tokens,
+    SUM(cache_read_input_tokens)     AS cache_read_tokens,
+    SUM(cost_usd)       AS cost_usd,
+    AVG(latency_ms)     AS avg_latency_ms
+  FROM turns
+  WHERE created_at >= ?
+`);
+
+const selectUsageByUser = db.prepare(`
+  SELECT user_id, COUNT(*) AS turns, SUM(cost_usd) AS cost_usd, SUM(input_tokens + output_tokens) AS tokens
+  FROM turns
+  WHERE created_at >= ?
+  GROUP BY user_id
+  ORDER BY cost_usd DESC
+  LIMIT 10
+`);
+
+const selectUsageByModel = db.prepare(`
+  SELECT model, COUNT(*) AS turns, SUM(cost_usd) AS cost_usd
+  FROM turns
+  WHERE created_at >= ?
+  GROUP BY model
+  ORDER BY cost_usd DESC
+`);
+
+export function usageSummary(hours = 24) {
+  const since = Date.now() - hours * 3600 * 1000;
+  return {
+    window_hours: hours,
+    total: selectUsageSummary.get(since),
+    by_user: selectUsageByUser.all(since),
+    by_model: selectUsageByModel.all(since),
+  };
+}
