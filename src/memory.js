@@ -60,6 +60,40 @@ const deleteChannelSince = db.prepare(`
 
 const countMessages = db.prepare('SELECT COUNT(*) AS n FROM messages');
 
+const selectPendingEmbeddings = db.prepare(`
+  SELECT id, content
+  FROM messages
+  WHERE embedding IS NULL
+    AND role = 'user'
+    AND length(content) >= 4
+  ORDER BY id ASC
+  LIMIT ?
+`);
+
+const updateEmbedding = db.prepare(`
+  UPDATE messages
+  SET embedding = ?, embedding_model = ?
+  WHERE id = ?
+`);
+
+const countPendingEmbeddings = db.prepare(`
+  SELECT COUNT(*) AS n FROM messages WHERE embedding IS NULL AND role = 'user' AND length(content) >= 4
+`);
+
+const selectEmbeddedUserMessages = db.prepare(`
+  SELECT m.id, m.channel_id, m.user_id, m.username, m.content, m.created_at, m.embedding
+  FROM messages m
+  WHERE m.embedding IS NOT NULL AND m.role = 'user'
+`);
+
+const selectAssistantForUser = db.prepare(`
+  SELECT m.content, m.created_at
+  FROM turns t
+  JOIN messages m ON m.id = t.assistant_message_id
+  WHERE t.user_message_id = ?
+  LIMIT 1
+`);
+
 export function persistMessage({
   channelId,
   guildId = null,
@@ -168,4 +202,29 @@ export function clearShortTermContext({ channelId }) {
 
 export function totalMessageCount() {
   return countMessages.get().n;
+}
+
+export function pendingEmbeddingsCount() {
+  return countPendingEmbeddings.get().n;
+}
+
+export function getPendingEmbeddings(limit = 32) {
+  return selectPendingEmbeddings.all(limit);
+}
+
+export function setEmbedding(id, blob, model) {
+  updateEmbedding.run(blob, model, id);
+}
+
+// Returns every embedded user message paired with its embedding (deserialized).
+// Iterates in chunks so the entire corpus does not have to land in memory at
+// once for very large stores. Used by the semantic-search tool.
+export function* iterEmbeddedUserMessages() {
+  for (const row of selectEmbeddedUserMessages.iterate()) {
+    yield row;
+  }
+}
+
+export function getAssistantResponseFor(userMessageId) {
+  return selectAssistantForUser.get(userMessageId);
 }

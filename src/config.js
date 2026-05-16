@@ -47,6 +47,7 @@ function readEnv() {
       dbPath: (process.env.CONVERSATION_DB_PATH || './data/conversation.db').trim(),
       shortTermTurns: parseInt(process.env.SHORT_TERM_CONTEXT_TURNS || '12', 10),
       shortTermMinutes: parseInt(process.env.SHORT_TERM_CONTEXT_MINUTES || '60', 10),
+      searchMinSimilarity: parseFloat(process.env.SEARCH_MIN_SIMILARITY || '0.15'),
     },
   };
 }

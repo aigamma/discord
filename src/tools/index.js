@@ -13,15 +13,25 @@ import * as vixFamily from './vixFamily.js';
 import * as ivPercentile from './ivPercentile.js';
 import * as gexLevels from './gexLevels.js';
 import * as termStructure from './termStructure.js';
+import * as searchChatHistory from './searchChatHistory.js';
 
-const MODULES = [vixFamily, ivPercentile, gexLevels, termStructure];
+const SUPABASE_MODULES = [vixFamily, ivPercentile, gexLevels, termStructure];
+const MEMORY_MODULES = [searchChatHistory];
 
-export function getToolSpecs() {
-  if (!config.supabase.enabled) return [];
-  return MODULES.map((m) => m.spec);
+function activeModules() {
+  const mods = [];
+  if (config.supabase.enabled) mods.push(...SUPABASE_MODULES);
+  if (config.voyage.enabled) mods.push(...MEMORY_MODULES);
+  return mods;
 }
 
-const EXECUTORS = Object.fromEntries(MODULES.map((m) => [m.spec.name, m.execute]));
+export function getToolSpecs() {
+  return activeModules().map((m) => m.spec);
+}
+
+const EXECUTORS = Object.fromEntries(
+  [...SUPABASE_MODULES, ...MEMORY_MODULES].map((m) => [m.spec.name, m.execute])
+);
 
 export async function executeTool(name, input) {
   const fn = EXECUTORS[name];
