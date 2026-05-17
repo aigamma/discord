@@ -626,8 +626,23 @@ export function buildClient() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isChatInputCommand()) {
+    if (!interaction.isChatInputCommand()) return;
+    try {
       await handleSlashCommand(interaction);
+    } catch (err) {
+      logger.error('slash command unhandled error', {
+        command: interaction.commandName,
+        user_id: interaction.user.id,
+        err,
+      });
+      const reply = `Something went wrong: \`${err?.message || err}\``;
+      // Try editReply first (covers the case where the handler deferred
+      // but failed mid-flight); fall back to reply when no defer happened.
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(reply).catch(() => {});
+      } else {
+        await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   });
 
