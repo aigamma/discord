@@ -50,6 +50,13 @@ function readEnv() {
       guildId: (process.env.DISCORD_GUILD_ID || '').trim() || null,
       ownerId: (process.env.OWNER_DISCORD_USER_ID || '').trim() || null,
     },
+    operator: {
+      // Identity surface for the system prompt's [OPERATOR IDENTITY] block.
+      // Forkers can override these via env vars without editing source.
+      handle: (process.env.OPERATOR_HANDLE || 'Blue').trim(),
+      name: (process.env.OPERATOR_NAME || 'Eric Allione').trim(),
+      communityName: (process.env.COMMUNITY_NAME || 'Options Alchemy').trim(),
+    },
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY.trim(),
       model: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6').trim(),
