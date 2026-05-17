@@ -346,7 +346,7 @@ async function handleHealth(interaction) {
           : 'disabled',
         inline: true,
       },
-      { name: 'Voyage embeddings', value: config.voyage.enabled ? 'enabled' : 'disabled', inline: true },
+      { name: 'Voyage embeddings', value: config.voyage.enabled ? `enabled (${config.voyage.model})` : 'disabled', inline: true },
       { name: 'Web search', value: config.anthropic.webSearchEnabled ? 'enabled' : 'disabled', inline: true },
       { name: 'DuckDB shards', value: shardSummary, inline: false },
     );
