@@ -106,9 +106,21 @@ cp .env.example .env.local
 Fill in `.env.local`. Required: `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`,
 `ANTHROPIC_API_KEY`. Optional: `SUPABASE_*` (enables live market data and
 pgvector memory), `VOYAGE_API_KEY` (enables semantic recall),
-`BACKTESTER_DATA_DIR` (enables DuckDB tool).
+`BACKTESTER_DATA_DIR` (enables DuckDB tool),
+`OPERATOR_HANDLE`/`OPERATOR_NAME`/`COMMUNITY_NAME` (override the
+system-prompt identity for forks).
 
-### 4. Register slash commands
+### 4. Verify credentials
+
+```bash
+npm run verify
+```
+
+Pings every configured external service (Anthropic, Supabase REST,
+Supabase pgvector, Voyage, DuckDB shards) and reports per-service
+status. Catches credential errors before users hit them via `/ask`.
+
+### 5. Register slash commands
 
 ```bash
 npm run register
@@ -117,7 +129,7 @@ npm run register
 If `DISCORD_GUILD_ID` is set, commands register to that guild instantly.
 Otherwise global registration, which propagates within ~1 hour.
 
-### 5. Run
+### 6. Run
 
 ```bash
 npm start
