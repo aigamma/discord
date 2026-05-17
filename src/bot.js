@@ -657,6 +657,17 @@ async function handleReactionChange(reaction, user, added) {
   if (reaction.partial) {
     try { await reaction.fetch(); } catch { return; }
   }
+  // The reaction's parent message can ALSO be partial — discord.js
+  // delivers a Partial Message when the message was sent before the
+  // current process start or has aged out of the cache. A partial
+  // message has author === null, so the bot-author check below
+  // short-circuits and the reaction is silently dropped. That meant
+  // an upvote on a 3-day-old bot reply never recorded feedback.
+  // Cheap to fetch — Discord caches by id and one fetch per reaction
+  // event is fine.
+  if (reaction.message.partial) {
+    try { await reaction.message.fetch(); } catch { return; }
+  }
   const sentiment = FEEDBACK_EMOJI[reaction.emoji.name];
   if (!sentiment) return;
   if (reaction.message.author?.id !== reaction.client.user.id) return;
