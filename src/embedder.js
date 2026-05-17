@@ -41,15 +41,17 @@ async function embedTick() {
   const texts = rows.map((r) => r.content.slice(0, 8000));
   const vectors = await embed(texts, { inputType: 'document' });
 
-  // Defensive: if Voyage returns fewer vectors than requested (a length
-  // mismatch theoretically possible on partial response), don't write
-  // garbage. Skip the orphans; the SQL query will return them again
-  // next tick. Logged so the operator can investigate.
+  // Defensive: if Voyage returns fewer vectors than requested or an
+  // empty/malformed vector for any row, don't write garbage. Skip the
+  // orphans; the SQL query will return them again next tick. An empty
+  // Float32Array has byteLength=0 — a previous version accepted it as
+  // 'a number' and wrote a zero-length blob that never matches search.
+  // Require byteLength > 0 to catch that case.
   const writes = [];
   for (let i = 0; i < rows.length; i++) {
     const v = vectors[i];
-    if (!v || typeof v.byteLength !== 'number') {
-      try { logger.warn('embedder: voyage returned no vector for row', { row_id: rows[i].id, batch_index: i }); } catch { /* */ }
+    if (!v || typeof v.byteLength !== 'number' || v.byteLength === 0) {
+      try { logger.warn('embedder: voyage returned no or empty vector for row', { row_id: rows[i].id, batch_index: i, byte_length: v?.byteLength }); } catch { /* */ }
       continue;
     }
     writes.push({ id: rows[i].id, blob: vecToBlob(v), model: config.voyage.model });
