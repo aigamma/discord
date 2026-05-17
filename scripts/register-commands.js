@@ -101,8 +101,8 @@ const commands = [
     .addSubcommand((s) =>
       s.setName('reset-rate-limit')
         .setDescription("Clear a user's in-memory rate-limit bucket")
-        .addStringOption((opt) =>
-          opt.setName('user').setDescription('Discord user id').setRequired(true)
+        .addUserOption((opt) =>
+          opt.setName('user').setDescription('User to reset').setRequired(true)
         )
     )
     .addSubcommand((s) =>

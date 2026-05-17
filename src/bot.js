@@ -485,9 +485,11 @@ async function handleAdmin(interaction) {
       const rotatedNote = r.rotated.length ? ` · rotated ${r.rotated.length} old file(s)` : '';
       await interaction.editReply(`Backup wrote ${r.mb}MB to \`${r.outPath}\` in ${r.elapsedMs}ms${rotatedNote}.`);
     } else if (sub === 'reset-rate-limit') {
-      const target = interaction.options.getString('user', true);
-      const r = resetUserRateLimit(target);
-      await interaction.editReply(r.cleared ? `Cleared rate limit for ${target}.` : `No active bucket for ${target}.`);
+      const target = interaction.options.getUser('user', true);
+      const r = resetUserRateLimit(target.id);
+      await interaction.editReply(r.cleared
+        ? `Cleared rate limit for ${target.username} (${target.id}).`
+        : `No active bucket for ${target.username} (${target.id}).`);
     } else if (sub === 'feedback') {
       const hours = interaction.options.getInteger('hours') || 168;
       const r = feedbackReport(hours);
