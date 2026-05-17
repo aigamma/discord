@@ -14,7 +14,7 @@ export const spec = {
     properties: {
       max_expirations: {
         type: 'integer',
-        description: 'Cap on the number of expirations to include (sorted from nearest to furthest). Defaults to 20.',
+        description: 'Cap on the number of expirations to include (sorted from nearest to furthest). Defaults to 20; clamped to [1, 50].',
         default: 20,
       },
     },
