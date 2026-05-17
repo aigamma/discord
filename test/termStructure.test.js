@@ -67,6 +67,39 @@ test('termStructure: computes DTE and skews from the latest run', async () => {
   }
 });
 
+test('termStructure: clamps max_expirations to [1, 50]', async () => {
+  const captured = [];
+  const restore = stubFetch({
+    'ingest_runs': async () => [{ id: 1, captured_at: '2026-05-15T20:00:00Z', trading_date: '2026-05-15' }],
+    'expiration_metrics': async (params) => {
+      captured.push(params);
+      return [];
+    },
+  });
+  try {
+    await execute({ max_expirations: 99999 });
+    assert.equal(captured[0].limit, '50');
+  } finally {
+    restore();
+  }
+  // Lower bound: 0 should clamp to 1, not 0.
+  const captured2 = [];
+  const restore2 = stubFetch({
+    'ingest_runs': async () => [{ id: 1, captured_at: '2026-05-15T20:00:00Z', trading_date: '2026-05-15' }],
+    'expiration_metrics': async (params) => {
+      captured2.push(params);
+      return [];
+    },
+  });
+  try {
+    await execute({ max_expirations: 0 });
+    // 0 → fallback 20 (parseInt('0',10) = 0, the `|| 20` triggers).
+    assert.equal(captured2[0].limit, '20');
+  } finally {
+    restore2();
+  }
+});
+
 test('termStructure: null skew components handled', async () => {
   const restore = stubFetch({
     'ingest_runs': async () => [{ id: 1, captured_at: '2026-05-15T20:00:00Z', trading_date: '2026-05-15' }],

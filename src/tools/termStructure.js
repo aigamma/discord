@@ -30,6 +30,11 @@ function daysBetween(fromIsoDate, toIsoDate) {
 }
 
 export async function execute({ max_expirations = 20 } = {}) {
+  // Clamp before passing to PostgREST so a model passing 99999 doesn't
+  // try to slam every expiration into one response. SPX typically has
+  // ~30 listed expirations on any given day; capping at 50 leaves
+  // headroom for special expirations without blowing the tool result.
+  const cap = Math.min(Math.max(parseInt(max_expirations, 10) || 20, 1), 50);
   const runs = await selectRows('ingest_runs', {
     underlying: 'eq.SPX',
     snapshot_type: 'eq.intraday',
@@ -46,7 +51,7 @@ export async function execute({ max_expirations = 20 } = {}) {
     run_id: `eq.${run.id}`,
     select: 'expiration_date,atm_iv,put_25d_iv,call_25d_iv',
     order: 'expiration_date.asc',
-    limit: String(max_expirations),
+    limit: String(cap),
   });
 
   const expirations = rows.map((r) => ({
