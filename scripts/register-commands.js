@@ -47,7 +47,7 @@ const commands = [
         .setDescription('Which conversations to search')
         .addChoices(
           { name: 'this channel only', value: 'channel' },
-          { name: 'every channel', value: 'all' }
+          { name: 'every channel in this server', value: 'all' }
         )
     )
     .toJSON(),

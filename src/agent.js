@@ -49,7 +49,8 @@ async function withRetry(fn) {
     } catch (err) {
       lastErr = err;
       const status = err?.status || err?.response?.status;
-      const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 529;
+      const transient = status === 408 || status === 429 || status === 500
+        || status === 502 || status === 503 || status === 504 || status === 529;
       if (!transient || attempt === RETRY_ATTEMPTS - 1) throw err;
       const wait = RETRY_BACKOFF_MS[attempt] || 5000;
       logger.warn('anthropic transient error; retrying', { status, attempt: attempt + 1, wait_ms: wait });
