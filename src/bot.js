@@ -755,7 +755,13 @@ export function buildClient() {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    await handleMention(message, config.discord.clientId);
+    await handleMention(message, config.discord.clientId).catch((err) =>
+      logger.error('mention handler unhandled', {
+        err,
+        channel_id: message?.channelId,
+        user_id: message?.author?.id,
+      })
+    );
   });
 
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
