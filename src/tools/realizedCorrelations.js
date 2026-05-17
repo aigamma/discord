@@ -73,7 +73,12 @@ function logReturnsFromCloses(closes) {
 }
 
 export async function execute({ symbols = null, lookback_days = 60 } = {}) {
-  const basket = (symbols && symbols.length > 0 ? symbols : DEFAULT_BASKET).map((s) => s.toUpperCase());
+  // Cap basket at 30 symbols. Pearson is O(basket^2 * days); a 100-symbol
+  // basket at 1260 days approaches 50s on the bot's hardware, which
+  // would timeout the Discord interaction and tie up the agent loop.
+  // 30 is plenty for sector / index / single-name analysis.
+  const requested = (symbols && symbols.length > 0 ? symbols : DEFAULT_BASKET);
+  const basket = requested.slice(0, 30).map((s) => String(s).toUpperCase());
   const days = Math.min(Math.max(parseInt(lookback_days, 10) || 60, 7), 1260);
   const fromDate = new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 10);
 

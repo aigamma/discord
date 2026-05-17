@@ -125,6 +125,28 @@ test('realizedCorrelations: drops dates with a null close for any basket symbol'
   }
 });
 
+test('realizedCorrelations: caps basket at 30 symbols', async () => {
+  // Generate 50 symbols. The pearson cost is O(N^2 * days), and a
+  // 50-symbol basket at the 1260-day cap would tie up the agent loop
+  // long enough to timeout the Discord interaction. The cap prevents
+  // a hostile or hallucinated tool call from doing this.
+  const symbols = Array.from({ length: 50 }, (_, i) => `S${i}`);
+  let capturedParams;
+  const restore = stubFetch(async (_path, params) => {
+    capturedParams = params;
+    return [];
+  });
+  try {
+    await execute({ symbols, lookback_days: 30 });
+    // The IN clause should mention only the first 30 symbols.
+    const ins = capturedParams.symbol;
+    const listed = ins.match(/S\d+/g) || [];
+    assert.equal(listed.length, 30, `expected 30 symbols, got ${listed.length}`);
+  } finally {
+    restore();
+  }
+});
+
 test('realizedCorrelations: a constant series produces null corr, not NaN', async () => {
   // Constant close for one symbol means zero variance -> denom = 0 in
   // pearson(). Before the audit fix, the caller's `c != null` check
