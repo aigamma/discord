@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { loadChannelHistoryForSummary, persistMessage, persistTurn } from './memory.js';
 import { priceUsage } from './pricing.js';
 import { withAnthropicRetry } from './anthropicRetry.js';
+import { beginWork, isShuttingDown } from './lifecycle.js';
 import { logger } from './logger.js';
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey });
@@ -44,6 +45,18 @@ function formatTranscript(rows) {
 }
 
 export async function summarize({ channelId, guildId = null, userId = null, lookbackMessages = 100, onProgress = null }) {
+  if (isShuttingDown()) {
+    throw new Error('Bot is shutting down; new requests refused.');
+  }
+  const releaseWork = beginWork();
+  try {
+    return await summarizeInner({ channelId, guildId, userId, lookbackMessages, onProgress });
+  } finally {
+    releaseWork();
+  }
+}
+
+async function summarizeInner({ channelId, guildId, userId, lookbackMessages, onProgress }) {
   const rows = loadChannelHistoryForSummary({ channelId, limit: lookbackMessages });
   if (rows.length === 0) {
     return { text: 'Nothing to summarize. No messages persisted in this channel yet.' };
