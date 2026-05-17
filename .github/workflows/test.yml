@@ -44,8 +44,10 @@ jobs:
             echo "Possible secret committed; refusing to pass CI"
             exit 1
           fi
-          # Also reject any tracked .env / .env.local file
-          if git ls-files | grep -E "^\.env($|\.local$|\..*\.local$)" ; then
+          # Also reject any tracked .env* file except the .env.example
+          # template. Catches .env, .env.local, .env.production,
+          # .env.staging, .env.dev.local, etc.
+          if git ls-files | grep -E "^\.env" | grep -vE "^\.env\.example$"; then
             echo "An .env file is tracked; remove it before merging"
             exit 1
           fi

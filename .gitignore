@@ -2,10 +2,13 @@
 node_modules
 dist
 
-# Environment files — never commit secrets
+# Environment files — never commit secrets. The pattern catches the
+# canonical .env, .env.local, .env.{anything}.local convention plus
+# .env.production / .env.staging / .env.development etc. Only
+# .env.example (a template with no values) is tracked.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Logs
 *.log
