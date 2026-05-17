@@ -4,6 +4,26 @@
 
 const REQUIRED = ['DISCORD_BOT_TOKEN', 'DISCORD_CLIENT_ID', 'ANTHROPIC_API_KEY'];
 
+function safeInt(name, raw, fallback, { min = 0, max = Infinity } = {}) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < min || n > max) {
+    console.error(`[config] ${name}=${JSON.stringify(raw)} is not a valid integer in [${min}, ${max}]; using fallback ${fallback}`);
+    return fallback;
+  }
+  return n;
+}
+
+function safeFloat(name, raw, fallback, { min = -Infinity, max = Infinity } = {}) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    console.error(`[config] ${name}=${JSON.stringify(raw)} is not a valid number in [${min}, ${max}]; using fallback ${fallback}`);
+    return fallback;
+  }
+  return n;
+}
+
 function readEnv() {
   const missing = REQUIRED.filter((k) => !process.env[k] || !process.env[k].trim());
   if (missing.length > 0) {
@@ -33,12 +53,12 @@ function readEnv() {
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY.trim(),
       model: (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6').trim(),
-      maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10),
+      maxTokens: safeInt('ANTHROPIC_MAX_TOKENS', process.env.ANTHROPIC_MAX_TOKENS, 4096, { min: 64, max: 200000 }),
       webSearchEnabled: (process.env.ENABLE_WEB_SEARCH || 'true').toLowerCase() !== 'false',
       webFetchEnabled: (process.env.ENABLE_WEB_FETCH || 'true').toLowerCase() !== 'false',
     },
     budget: {
-      dailyUserCapUsd: parseFloat(process.env.DAILY_USER_COST_CAP_USD || '0'),
+      dailyUserCapUsd: safeFloat('DAILY_USER_COST_CAP_USD', process.env.DAILY_USER_COST_CAP_USD, 0, { min: 0 }),
     },
     supabase: {
       enabled: supabaseEnabled,
@@ -52,9 +72,9 @@ function readEnv() {
     },
     memory: {
       dbPath: (process.env.CONVERSATION_DB_PATH || './data/conversation.db').trim(),
-      shortTermTurns: parseInt(process.env.SHORT_TERM_CONTEXT_TURNS || '12', 10),
-      shortTermMinutes: parseInt(process.env.SHORT_TERM_CONTEXT_MINUTES || '60', 10),
-      searchMinSimilarity: parseFloat(process.env.SEARCH_MIN_SIMILARITY || '0.15'),
+      shortTermTurns: safeInt('SHORT_TERM_CONTEXT_TURNS', process.env.SHORT_TERM_CONTEXT_TURNS, 12, { min: 0, max: 100 }),
+      shortTermMinutes: safeInt('SHORT_TERM_CONTEXT_MINUTES', process.env.SHORT_TERM_CONTEXT_MINUTES, 60, { min: 1, max: 24 * 60 }),
+      searchMinSimilarity: safeFloat('SEARCH_MIN_SIMILARITY', process.env.SEARCH_MIN_SIMILARITY, 0.15, { min: -1, max: 1 }),
     },
   };
 }
