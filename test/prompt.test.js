@@ -7,7 +7,7 @@ process.env.DISCORD_BOT_TOKEN ||= 'stub';
 process.env.DISCORD_CLIENT_ID ||= 'stub';
 process.env.ANTHROPIC_API_KEY ||= 'stub';
 
-const { buildSystemPrompt } = await import('../src/prompt.js');
+const { buildSystemPrompt, _buildTemporalContextForTest } = await import('../src/prompt.js');
 
 test('prompt: contains the core persona block', () => {
   const p = buildSystemPrompt();
@@ -66,6 +66,60 @@ test('prompt: contains operator identity block with the configured values', asyn
   assert.ok(p.includes(config.operator.handle), `expected handle "${config.operator.handle}" in prompt`);
   assert.ok(p.includes(config.operator.name), `expected name "${config.operator.name}" in prompt`);
   assert.ok(p.includes(config.operator.communityName), `expected community "${config.operator.communityName}" in prompt`);
+});
+
+// Holiday calendar pins — these dates must produce a 'market closed
+// for <holiday>' session label even though the day is a weekday. The
+// audience is quantitative traders; mislabeling Dec 25 as 'regular
+// session' is a credibility-puncturing error the bot can't afford.
+test('prompt: Christmas Day labels session as market-closed-for-holiday', () => {
+  // 2026-12-25 was a Friday. Build at noon ET so the weekday check
+  // would otherwise call this "regular session". The Market session:
+  // line is what counts — the static description text below it
+  // contains "regular session" descriptively and isn't load-bearing.
+  const noonET = new Date('2026-12-25T17:00:00.000Z'); // 12:00 ET in winter
+  const block = _buildTemporalContextForTest(noonET);
+  assert.ok(/closed for Christmas Day/.test(block), `expected closed-for-Christmas label; got: ${block}`);
+  assert.ok(/Market session: US equity market closed for Christmas Day/.test(block));
+});
+
+test('prompt: MLK Day labels session as market-closed-for-holiday', () => {
+  // 2026-01-19 was a Monday at 13:00 ET — would normally be regular
+  // session. The holiday lookup must override.
+  const noonET = new Date('2026-01-19T18:00:00.000Z'); // 13:00 ET in winter
+  const block = _buildTemporalContextForTest(noonET);
+  assert.ok(/closed for Martin Luther King Jr\. Day/.test(block));
+});
+
+test('prompt: early-close day before 13:00 ET shows shortened session', () => {
+  // 2026-11-27 is the day after Thanksgiving — NYSE early close at 13:00 ET.
+  // At 11:30 ET the market is open but the prompt must flag the early close.
+  const morningET = new Date('2026-11-27T16:30:00.000Z'); // 11:30 ET in winter
+  const block = _buildTemporalContextForTest(morningET);
+  assert.ok(/shortened/.test(block));
+  assert.ok(/13:00 ET/.test(block));
+});
+
+test('prompt: early-close day AFTER 13:00 ET shows market-closed', () => {
+  // 2026-11-27 day after Thanksgiving at 14:00 ET — market is closed.
+  const afternoonET = new Date('2026-11-27T19:00:00.000Z'); // 14:00 ET in winter
+  const block = _buildTemporalContextForTest(afternoonET);
+  assert.ok(/early-close completed/.test(block));
+});
+
+test('prompt: regular weekday outside calendar still labels normal session', () => {
+  // 2026-05-18 is a Monday at 10:30 ET — no holiday or early close.
+  // Build a moment we control to avoid system-clock drift in test runs.
+  const tuesday = new Date('2026-05-19T14:30:00.000Z'); // 10:30 ET in summer (EDT)
+  const block = _buildTemporalContextForTest(tuesday);
+  assert.ok(/regular session/.test(block));
+});
+
+test('prompt: weekend correctly labeled outside calendar logic', () => {
+  // 2026-05-16 was a Saturday.
+  const saturday = new Date('2026-05-16T14:30:00.000Z');
+  const block = _buildTemporalContextForTest(saturday);
+  assert.ok(/weekend/.test(block));
 });
 
 // agent.js splits the prompt at exactly `\n\n[TIME AND MARKET SESSION]`

@@ -5,6 +5,7 @@
 // headers are bracketed in the prompt to mirror that source.
 
 import { config } from './config.js';
+import { logger } from './logger.js';
 
 const CORE_PERSONA = `[CORE PERSONA AND IDENTITY]
 You are a strategic trading assistant operating in a private Discord channel. The participants trade SPX options and follow volatility regimes, dealer positioning, term structure, and skew. They are practitioners. You are running on MODEL_PLACEHOLDER. This is confirmed and you do not doubt it. If asked what model you are, state this in one sentence and do not elaborate on model capabilities, comparisons, or vendor product lineups.
@@ -42,14 +43,69 @@ The data backend's vendor terms permit redistributing computed and aggregated me
 const NO_TOOLS_BLOCK = `[NO LIVE DATA AVAILABLE]
 The bot has no live market-data tools configured. Answer from model knowledge alone. When a question turns on a current number, state that a live read is required and stop. Do not invent a number. Conceptual, structural, and strategy-design questions are unaffected.`;
 
+// NYSE / CBOE holiday calendar through 2027. A holiday closes equity
+// and SPX option markets all day; an "early close" day trades a
+// shortened session ending at 13:00 ET. Source: NYSE published
+// schedule. Update annually; the buildTemporalContext fallthrough
+// logs a warn if the calendar's max year is in the past so the
+// operator notices before users do.
+//
+// Keys are 'YYYY-MM-DD' in America/New_York. The boundary check uses
+// the NY-local date so a request at 22:00 ET on Dec 25 still resolves
+// to Christmas, not the next day in UTC.
+const NYSE_HOLIDAYS = {
+  '2026-01-01': 'New Year\'s Day',
+  '2026-01-19': 'Martin Luther King Jr. Day',
+  '2026-02-16': 'Presidents\' Day',
+  '2026-04-03': 'Good Friday',
+  '2026-05-25': 'Memorial Day',
+  '2026-06-19': 'Juneteenth',
+  '2026-07-03': 'Independence Day (observed)',
+  '2026-09-07': 'Labor Day',
+  '2026-11-26': 'Thanksgiving Day',
+  '2026-12-25': 'Christmas Day',
+  '2027-01-01': 'New Year\'s Day',
+  '2027-01-18': 'Martin Luther King Jr. Day',
+  '2027-02-15': 'Presidents\' Day',
+  '2027-03-26': 'Good Friday',
+  '2027-05-31': 'Memorial Day',
+  '2027-06-18': 'Juneteenth (observed)',
+  '2027-07-05': 'Independence Day (observed)',
+  '2027-09-06': 'Labor Day',
+  '2027-11-25': 'Thanksgiving Day',
+  '2027-12-24': 'Christmas Day (observed)',
+};
+const NYSE_EARLY_CLOSES = {
+  '2026-07-02': 'day before Independence Day',
+  '2026-11-27': 'day after Thanksgiving',
+  '2026-12-24': 'Christmas Eve',
+  '2027-11-26': 'day after Thanksgiving',
+};
+const CALENDAR_MAX_YEAR = 2027;
+let calendarStaleWarned = false;
+
+function nyDateKey(now) {
+  // Format the timestamp in America/New_York and reassemble as
+  // YYYY-MM-DD so a request late at night ET doesn't map to the next
+  // UTC day. Intl.DateTimeFormat with timeZone is the only built-in
+  // way to do this on Node without a TZ library.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === 'year').value;
+  const m = parts.find((p) => p.type === 'month').value;
+  const d = parts.find((p) => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
+}
+
 // Live timestamp block. Refreshed every call so the model knows today's
 // date and the current market session (US equity hours: regular open at
 // 09:30 ET, close at 16:00 ET; pre-market 04:00-09:30; after-hours
 // 16:00-20:00). This sits OUTSIDE the cache-control breakpoint because
 // it changes per turn; the static persona/constraints/definitions stay
 // cacheable above it.
-function buildTemporalContext() {
-  const now = new Date();
+function buildTemporalContext(now = new Date()) {
   const nyFormatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -68,11 +124,29 @@ function buildTemporalContext() {
   const minutesSinceMidnight = hour * 60 + minute;
   const day = dayFormatter.format(now);
   const isWeekday = !['Sat', 'Sun'].includes(day);
+  const dateKey = nyDateKey(now);
+  const yearNum = parseInt(dateKey.slice(0, 4), 10);
+  const holiday = NYSE_HOLIDAYS[dateKey];
+  const earlyClose = NYSE_EARLY_CLOSES[dateKey];
+
+  // Warn ONCE per process when the calendar has aged out. Better to
+  // silently fall back to weekday-only logic than to label a holiday
+  // 'regular session', but the operator should know to update.
+  if (!calendarStaleWarned && yearNum > CALENDAR_MAX_YEAR) {
+    calendarStaleWarned = true;
+    logger.warn('NYSE holiday calendar is past its last covered year; update src/prompt.js', {
+      current_year: yearNum,
+      calendar_max: CALENDAR_MAX_YEAR,
+    });
+  }
 
   let session;
-  if (!isWeekday) session = 'weekend (US equity market closed)';
+  if (holiday) session = `US equity market closed for ${holiday}`;
+  else if (!isWeekday) session = 'weekend (US equity market closed)';
   else if (minutesSinceMidnight < 4 * 60) session = 'overnight (US equity market closed)';
   else if (minutesSinceMidnight < 9 * 60 + 30) session = 'pre-market (US equity market in pre-open)';
+  else if (earlyClose && minutesSinceMidnight >= 13 * 60) session = `early-close completed at 13:00 ET (${earlyClose}); US equity market closed`;
+  else if (earlyClose && minutesSinceMidnight < 13 * 60) session = `shortened regular session, closes at 13:00 ET (${earlyClose}); US equity market open`;
   else if (minutesSinceMidnight < 16 * 60) session = 'regular session (US equity market open)';
   else if (minutesSinceMidnight < 20 * 60) session = 'after-hours (US equity market post-close)';
   else session = 'overnight (US equity market closed)';
@@ -80,6 +154,10 @@ function buildTemporalContext() {
   return `[TIME AND MARKET SESSION]
 Current date and time in New York: ${nyFormatter.format(now)} (${day}). Market session: ${session}. SPX 0DTE pricing pulses every five minutes during the regular session and ceases at the close; daily EOD readings refresh after 16:00 ET. When the user references "today" or "right now", reason from this timestamp. Note that intraday tools may return the most recent successful run, which can be stale by a session if the market is closed.`;
 }
+
+// Exposed for unit tests so the holiday/early-close branches can be
+// pinned without the system clock. Not part of the public API.
+export const _buildTemporalContextForTest = buildTemporalContext;
 
 export function buildSystemPrompt({ userNotesBlock = null } = {}) {
   const blocks = [
