@@ -24,7 +24,14 @@ import { logger } from './logger.js';
 
 const MAX_TOOL_ROUNDS = 8;
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+// maxRetries: 0 disables the SDK's internal retry layer so
+// withAnthropicRetry is the single authority. Without this, a
+// transient 503 went through SDK retries (2x) inside each of our
+// wrapper's attempts (3x) = up to 9 round-trips per round with
+// compounding backoff. Our wrapper also covers the mid-stream
+// finalMessage() failure path that SDK retries don't reach, so
+// owning the retry policy here is the natural choice.
+const client = new Anthropic({ apiKey: config.anthropic.apiKey, maxRetries: 0 });
 
 // Anthropic's server-side tools sit alongside the bot's own tools. The model
 // invokes them inside a single API call; results come back as content blocks

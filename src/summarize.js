@@ -13,7 +13,9 @@ import { withAnthropicRetry } from './anthropicRetry.js';
 import { beginWork, isShuttingDown } from './lifecycle.js';
 import { logger } from './logger.js';
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+// maxRetries: 0 — withAnthropicRetry is the sole retry authority,
+// matching agent.js. See agent.js for the full rationale.
+const client = new Anthropic({ apiKey: config.anthropic.apiKey, maxRetries: 0 });
 
 const SYSTEM = `You produce tight briefs of trading-channel conversation. The reader missed the last hour or two and wants to know what was discussed without scrolling. Constraints:
 
