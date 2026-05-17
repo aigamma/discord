@@ -18,6 +18,7 @@ import {
   attachDiscordMessageId,
   clearShortTermContext,
   clearUserNotes,
+  deleteUserNote,
   exportChannel,
   feedbackCounts,
   findAssistantMessage,
@@ -452,6 +453,30 @@ async function handleForgetNotes(interaction) {
   });
 }
 
+async function handleForgetNote(interaction) {
+  const number = interaction.options.getInteger('number', true);
+  const notes = listUserNotes(interaction.user.id);
+  if (notes.length === 0) {
+    await interaction.reply({ content: 'No saved notes.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (number < 1 || number > notes.length) {
+    await interaction.reply({
+      content: `Note #${number} doesn't exist. You have ${notes.length} saved note(s); see \`/notes\`.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const target = notes[number - 1];
+  const cleared = deleteUserNote({ userId: interaction.user.id, id: target.id });
+  await interaction.reply({
+    content: cleared > 0
+      ? `Removed note #${number}: ${target.content.slice(0, 80)}${target.content.length > 80 ? '…' : ''}`
+      : 'Could not remove that note.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 async function handleExport(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const { messages, truncated, cap } = exportChannel(interaction.channelId);
@@ -528,7 +553,7 @@ async function handleAbout(interaction) {
       },
       {
         name: 'Personal context',
-        value: '`/remember note:<text>` saves a persistent note about you that the bot surfaces on every future turn. `/notes` lists them, `/forget-notes` clears them. Cap of 12 notes × 280 chars.',
+        value: '`/remember note:<text>` saves a persistent note about you that the bot surfaces on every future turn. `/notes` lists them, `/forget-note number:<n>` removes a single note, `/forget-notes` clears them all. Cap of 12 notes × 280 chars.',
       },
       {
         name: 'Style',
@@ -613,6 +638,7 @@ async function handleSlashCommand(interaction) {
     case 'remember':       return handleRemember(interaction);
     case 'notes':          return handleListNotes(interaction);
     case 'forget-notes':   return handleForgetNotes(interaction);
+    case 'forget-note':    return handleForgetNote(interaction);
     case 'export':         return handleExport(interaction);
     default:
       // Unknown command — most often happens when a command was registered

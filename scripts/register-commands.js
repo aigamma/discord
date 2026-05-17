@@ -86,6 +86,13 @@ const commands = [
     .setDescription('Clear all your saved notes')
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('forget-note')
+    .setDescription('Remove a single saved note by its number (from /notes)')
+    .addIntegerOption((opt) =>
+      opt.setName('number').setDescription('The note number to remove, as shown in /notes (1, 2, …)').setRequired(true).setMinValue(1).setMaxValue(12)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('export')
     .setDescription('Download this channel\'s persisted Q&A as JSON')
     .toJSON(),
