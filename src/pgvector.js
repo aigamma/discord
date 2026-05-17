@@ -80,6 +80,31 @@ export async function searchChatMemoryRpc({ queryEmbedding, matchCount = 5, simi
   return res.json();
 }
 
+// Wipes every row owned by this bot from the discord_chat_memory mirror.
+// Used by /admin rebuild-embeddings so the resync doesn't end up with
+// orphan rows pointing at local_ids that no longer carry embeddings.
+// Returns the count of rows reportedly deleted, or null if Supabase is
+// unconfigured.
+export async function clearAllChatMemory() {
+  if (!config.supabase.enabled) return null;
+  // PostgREST DELETE with no filter is refused for safety; gte.0 selects
+  // every row because local_id is BIGINT non-null and always positive.
+  const res = await fetch(
+    `${config.supabase.url}/rest/v1/discord_chat_memory?local_id=gte.0`,
+    {
+      method: 'DELETE',
+      headers: { ...headers(), Prefer: 'return=representation' },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    }
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`discord_chat_memory DELETE ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) ? rows.length : null;
+}
+
 export async function checkPgvectorReachable() {
   if (!config.supabase.enabled) return false;
   try {

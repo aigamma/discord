@@ -8,6 +8,7 @@ import { logger } from './logger.js';
 import { clearAllEmbeddings, recentFeedback } from './memory.js';
 import { reset as resetRateLimit } from './rateLimiter.js';
 import { runBackup } from './backup.js';
+import { clearAllChatMemory, isEnabled as pgvectorEnabled } from './pgvector.js';
 
 export function isOwner(userId) {
   return Boolean(config.discord.ownerId) && userId === config.discord.ownerId;
@@ -15,8 +16,20 @@ export function isOwner(userId) {
 
 export async function rebuildEmbeddings() {
   const cleared = clearAllEmbeddings();
-  logger.info('admin: embeddings cleared for rebuild', { cleared });
-  return { cleared, note: 'Background embedder will re-embed on the next tick.' };
+  let pgvectorCleared = null;
+  if (pgvectorEnabled()) {
+    try {
+      pgvectorCleared = await clearAllChatMemory();
+    } catch (err) {
+      logger.warn('admin: pgvector wipe failed; local resync will produce duplicates until reconciled', { err });
+    }
+  }
+  logger.info('admin: embeddings cleared for rebuild', { cleared, pgvector_cleared: pgvectorCleared });
+  return {
+    cleared,
+    pgvector_cleared: pgvectorCleared,
+    note: 'Background embedder will re-embed and re-sync on the next tick.',
+  };
 }
 
 export function triggerBackup() {

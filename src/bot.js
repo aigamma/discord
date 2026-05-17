@@ -416,7 +416,8 @@ async function handleAdmin(interaction) {
   try {
     if (sub === 'rebuild-embeddings') {
       const r = await rebuildEmbeddings();
-      await interaction.editReply(`Cleared ${r.cleared} embedding(s). ${r.note}`);
+      const pgNote = r.pgvector_cleared != null ? ` · wiped ${r.pgvector_cleared} pgvector row(s)` : '';
+      await interaction.editReply(`Cleared ${r.cleared} local embedding(s)${pgNote}. ${r.note}`);
     } else if (sub === 'backup') {
       const r = triggerBackup();
       const rotatedNote = r.rotated.length ? ` · rotated ${r.rotated.length} old file(s)` : '';
