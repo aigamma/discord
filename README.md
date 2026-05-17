@@ -25,7 +25,7 @@ be forked.
 | `/forget` | Clear this channel's short-term context window. Non-destructive — older messages stay searchable via `/search`. |
 | `/export` | Download this channel's persisted Q&A as a JSON attachment (24MB cap; caller-only). |
 | `/usage [hours]` | Ephemeral cost / token / latency summary (p50, p95, prompt-cache hit ratio) with per-model, per-tool, feedback breakdowns. Owner-only: per-user spend breakdown. |
-| `/health` | Process state: pgvector reachability, embedder queue, DuckDB shards, tool cache stats, SQLite integrity. |
+| `/health` | Process state: pgvector reachability + latency, embed and sync queue depths, embed/sync failure counters (split), DuckDB shards, tool cache stats, SQLite integrity, lifecycle drain status. |
 | `/about` | Capability tour for new community members. |
 | `/admin <subcommand>` | Owner-gated: `rebuild-embeddings`, `backup`, `reset-rate-limit`, `feedback`. |
 | 👍 / 👎 reaction | Capture quality feedback on assistant messages; rolls up in `/usage` and `/admin feedback`. |
