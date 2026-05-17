@@ -9,10 +9,10 @@
 // Discord edit gets logged and the next tick retries.
 
 import { logger } from './logger.js';
+import { MAX_DISCORD_MESSAGE } from './textChunks.js';
 
 const MIN_EDIT_INTERVAL_MS = 800;
 const MIN_DELTA_CHARS = 24;
-const MAX_DISCORD_MESSAGE = 2000;
 const CURSOR_GLYPH = ' ▌'; // ▌ thin block cursor
 
 function truncateForEdit(text) {
