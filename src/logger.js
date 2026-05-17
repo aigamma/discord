@@ -16,6 +16,18 @@ const explicitLevel = (process.env.LOG_LEVEL || '').toLowerCase();
 const minLevel = LEVELS[explicitLevel] ?? LEVELS.info;
 const useJson = explicitFormat === 'json' || (!explicitFormat && !process.stdout.isTTY);
 
+// Auto-extract name/message/stack from an Error instance under fields.err
+// at any log level. JSON.stringify on a raw Error returns '{}' (its own
+// enumerable properties are zero), which used to silently drop the
+// error detail at warn/debug/info call sites that passed the raw Error.
+function flattenError(fields) {
+  if (fields?.err instanceof Error) {
+    const { message, stack, name } = fields.err;
+    return { ...fields, err: { name, message, stack } };
+  }
+  return fields;
+}
+
 function emit(level, msg, fields) {
   if (LEVELS[level] < minLevel) return;
   const time = new Date().toISOString();
@@ -38,27 +50,14 @@ function emit(level, msg, fields) {
 }
 
 export const logger = {
-  debug: (msg, fields) => emit('debug', msg, fields),
-  info: (msg, fields) => emit('info', msg, fields),
-  warn: (msg, fields) => emit('warn', msg, fields),
-  error: (msg, fields) => {
-    // Auto-extract stack from Error instances passed in fields.err
-    if (fields?.err instanceof Error) {
-      const { message, stack, name } = fields.err;
-      fields = { ...fields, err: { name, message, stack } };
-    }
-    emit('error', msg, fields);
-  },
+  debug: (msg, fields) => emit('debug', msg, flattenError(fields)),
+  info: (msg, fields) => emit('info', msg, flattenError(fields)),
+  warn: (msg, fields) => emit('warn', msg, flattenError(fields)),
+  error: (msg, fields) => emit('error', msg, flattenError(fields)),
   child: (defaults) => ({
-    debug: (msg, fields) => emit('debug', msg, { ...defaults, ...fields }),
-    info: (msg, fields) => emit('info', msg, { ...defaults, ...fields }),
-    warn: (msg, fields) => emit('warn', msg, { ...defaults, ...fields }),
-    error: (msg, fields) => {
-      if (fields?.err instanceof Error) {
-        const { message, stack, name } = fields.err;
-        fields = { ...fields, err: { name, message, stack } };
-      }
-      emit('error', msg, { ...defaults, ...fields });
-    },
+    debug: (msg, fields) => emit('debug', msg, { ...defaults, ...flattenError(fields) }),
+    info: (msg, fields) => emit('info', msg, { ...defaults, ...flattenError(fields) }),
+    warn: (msg, fields) => emit('warn', msg, { ...defaults, ...flattenError(fields) }),
+    error: (msg, fields) => emit('error', msg, { ...defaults, ...flattenError(fields) }),
   }),
 };
