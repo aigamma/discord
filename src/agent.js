@@ -366,6 +366,17 @@ async function answerInner({
     finalText += '\n\n_(response truncated at the max-tokens limit)_';
   }
 
+  // Refusal: Anthropic's safety classifier intercepted the response and
+  // returned stop_reason='refusal'. finalText is usually empty in this
+  // case. Tell the user the model declined rather than letting the
+  // ambiguous '_(no response)_' placeholder show. A trader staring at
+  // '_(no response)_' has no way to know whether to retry, rephrase, or
+  // give up.
+  if (stopReason === 'refusal') {
+    const note = 'The model declined to answer this question. If you believe this was a false positive, rephrase the question or ask the operator to review.';
+    finalText = finalText ? `${finalText}\n\n_${note}_` : `_${note}_`;
+  }
+
   // Empty assistant text after a successful turn is rare and worth
   // noticing. Surfaces as '_(no response)_' to the user, but without
   // a log line the operator can't see a pattern (model issue, prompt
