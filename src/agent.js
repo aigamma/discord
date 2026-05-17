@@ -248,16 +248,21 @@ async function answerInner({
         try { onToolStart(toolUseBlocks.map((b) => b.name)); } catch { /* swallow */ }
       }
 
-      const toolResults = [];
+      // Tools in a single round are independent — Anthropic invokes them
+      // as a batch and the order of results doesn't matter for the model's
+      // next step. Parallelize so a five-tool round doesn't pay the sum of
+      // five Supabase round trips.
       for (const block of toolUseBlocks) {
         allToolUses.push({ name: block.name, input: block.input, round });
+      }
+      const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
         const result = await executeTool(block.name, block.input);
-        toolResults.push({
+        return {
           type: 'tool_result',
           tool_use_id: block.id,
           content: JSON.stringify(result),
-        });
-      }
+        };
+      }));
       messages.push({ role: 'user', content: toolResults });
     }
   } catch (err) {
