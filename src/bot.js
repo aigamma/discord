@@ -529,7 +529,10 @@ async function handleAdmin(interaction) {
       const truncatedNote = included < Math.min(r.rows.length, 15)
         ? `\n_(${r.rows.length - included} more not shown)_`
         : '';
-      await interaction.editReply(header + (body || '_(none)_') + truncatedNote);
+      await interaction.editReply({
+        content: header + (body || '_(none)_') + truncatedNote,
+        allowedMentions: SAFE_ALLOWED_MENTIONS,
+      });
     }
   } catch (err) {
     logger.error('admin subcommand failed', { sub, err });
