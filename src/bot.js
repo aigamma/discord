@@ -50,6 +50,13 @@ const FEEDBACK_EMOJI = {
   '👎': 'down',
 };
 
+// All bot-authored content should default to no-pings. The model could
+// accidentally produce a literal <@123> or @everyone-style mention that
+// would notify users who never engaged with the conversation. We allow
+// the reply-mention (the user who triggered the bot) so the reply still
+// shows the standard Discord "replying to X" indicator.
+const SAFE_ALLOWED_MENTIONS = { parse: [], repliedUser: true };
+
 const MAX_DISCORD_MESSAGE = 2000;
 
 function chunk(text) {
@@ -116,7 +123,7 @@ async function handleAsk(interaction) {
 
   await interaction.deferReply();
   const reporter = createProgressReporter({
-    editText: (text) => interaction.editReply(text),
+    editText: (text) => interaction.editReply({ content: text, allowedMentions: SAFE_ALLOWED_MENTIONS }),
     label: 'ask',
   });
   try {
@@ -139,7 +146,7 @@ async function handleAsk(interaction) {
       attachDiscordMessageId(result.assistantMessageId, sentReply.id);
     }
     for (let i = 1; i < parts.length; i++) {
-      await interaction.followUp(parts[i]);
+      await interaction.followUp({ content: parts[i], allowedMentions: SAFE_ALLOWED_MENTIONS });
     }
   } catch (err) {
     reporter.cancel();
@@ -169,7 +176,7 @@ async function handleSummarize(interaction) {
   const limit = interaction.options.getInteger('messages') || 100;
   await interaction.deferReply();
   const reporter = createProgressReporter({
-    editText: (text) => interaction.editReply(text),
+    editText: (text) => interaction.editReply({ content: text, allowedMentions: SAFE_ALLOWED_MENTIONS }),
     label: 'summarize',
   });
   try {
@@ -184,7 +191,7 @@ async function handleSummarize(interaction) {
     const parts = chunk(text);
     await reporter.finalize(parts[0]);
     for (let i = 1; i < parts.length; i++) {
-      await interaction.followUp(parts[i]);
+      await interaction.followUp({ content: parts[i], allowedMentions: SAFE_ALLOWED_MENTIONS });
     }
   } catch (err) {
     reporter.cancel();
@@ -616,13 +623,13 @@ async function handleMention(message, clientId) {
 
   // Seed an initial reply so subsequent stream updates can edit it. The
   // placeholder is replaced on the first progress tick.
-  const sent = await message.reply('_…_').catch(() => null);
+  const sent = await message.reply({ content: '_…_', allowedMentions: SAFE_ALLOWED_MENTIONS }).catch(() => null);
   if (!sent) {
-    await message.reply('Something went wrong sending the reply seed.').catch(() => {});
+    await message.reply({ content: 'Something went wrong sending the reply seed.', allowedMentions: SAFE_ALLOWED_MENTIONS }).catch(() => {});
     return;
   }
   const reporter = createProgressReporter({
-    editText: (text) => sent.edit(text),
+    editText: (text) => sent.edit({ content: text, allowedMentions: SAFE_ALLOWED_MENTIONS }),
     label: 'mention',
   });
 
@@ -645,7 +652,7 @@ async function handleMention(message, clientId) {
       attachDiscordMessageId(result.assistantMessageId, sent.id);
     }
     for (let i = 1; i < parts.length; i++) {
-      await message.channel.send(parts[i]);
+      await message.channel.send({ content: parts[i], allowedMentions: SAFE_ALLOWED_MENTIONS });
     }
   } catch (err) {
     reporter.cancel();
