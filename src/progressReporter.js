@@ -29,6 +29,12 @@ export function createProgressReporter({ editText, label = 'edit' }) {
   let pendingTimer = null;
   let lastText = '';
   let closed = false;
+  // Serialize Discord edits. Without this, an editText() call that takes
+  // longer than MIN_EDIT_INTERVAL_MS (typical on a Discord rate-limit
+  // backoff) lets the next scheduled flush fire while the first is still
+  // awaiting — two concurrent edits hit the same message and Discord
+  // returns 429 on the second.
+  let inFlight = false;
 
   async function doEdit(text, isFinal = false) {
     try {
@@ -43,11 +49,22 @@ export function createProgressReporter({ editText, label = 'edit' }) {
   async function flush() {
     if (closed) return;
     if (lastText.length - lastEditedLen < MIN_DELTA_CHARS) return;
-    await doEdit(truncateForEdit(lastText));
+    inFlight = true;
+    try {
+      await doEdit(truncateForEdit(lastText));
+    } finally {
+      inFlight = false;
+      // Text may have advanced past the next-flush threshold while the
+      // edit was in flight. Re-schedule so the last delta still lands
+      // without waiting for another update() to arrive.
+      if (!closed && lastText.length - lastEditedLen >= MIN_DELTA_CHARS) {
+        scheduleFlush();
+      }
+    }
   }
 
   function scheduleFlush() {
-    if (pendingTimer) return;
+    if (pendingTimer || inFlight) return;
     const wait = Math.max(MIN_EDIT_INTERVAL_MS - (Date.now() - lastEditAt), 0);
     pendingTimer = setTimeout(() => {
       pendingTimer = null;

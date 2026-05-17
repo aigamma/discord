@@ -86,6 +86,37 @@ test('progress: cancel stops pending edits without landing one', async () => {
   assert.equal(edits.length, 0);
 });
 
+test('progress: serializes edits when editText is slow (no concurrent calls)', async () => {
+  // Reproduces the rate-limit collision: a slow Discord edit (longer
+  // than MIN_EDIT_INTERVAL_MS) used to let the next scheduled flush
+  // fire before the previous returned, producing concurrent edits on
+  // the same message and a 429 on the second. With the inFlight guard
+  // there must never be two concurrent editText() calls in flight.
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  const edits = [];
+  const reporter = createProgressReporter({
+    editText: async (text) => {
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await sleep(1200); // longer than MIN_EDIT_INTERVAL_MS (800)
+      edits.push(text);
+      concurrent--;
+    },
+  });
+  // Update three times with rapidly-growing text. The first triggers
+  // the slow edit; subsequent updates should NOT spawn a concurrent
+  // edit even though the debounce timer would otherwise allow it.
+  reporter.update('x'.repeat(100));
+  await sleep(50);
+  reporter.update('x'.repeat(300));
+  await sleep(900);
+  reporter.update('x'.repeat(500));
+  await sleep(2000);
+  assert.equal(maxConcurrent, 1, `must serialize Discord edits; observed ${maxConcurrent} concurrent`);
+  await reporter.finalize('x'.repeat(600));
+});
+
 test('progress: finalize is idempotent (double-call lands one edit)', async () => {
   const edits = [];
   const reporter = createProgressReporter({
