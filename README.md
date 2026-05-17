@@ -24,7 +24,7 @@ be forked.
 | `/forget-notes` | Clear all your saved notes. |
 | `/forget` | Clear this channel's short-term context window. Non-destructive — older messages stay searchable via `/search`. |
 | `/export` | Download this channel's persisted Q&A as a JSON attachment (24MB cap; caller-only). |
-| `/usage [hours]` | Ephemeral cost / token / latency summary with per-model, per-tool, feedback breakdowns. |
+| `/usage [hours]` | Ephemeral cost / token / latency summary (p50, p95, prompt-cache hit ratio) with per-model, per-tool, feedback breakdowns. Owner-only: per-user spend breakdown. |
 | `/health` | Process state: pgvector reachability, embedder queue, DuckDB shards, tool cache stats, SQLite integrity. |
 | `/about` | Capability tour for new community members. |
 | `/admin <subcommand>` | Owner-gated: `rebuild-embeddings`, `backup`, `reset-rate-limit`, `feedback`. |
@@ -264,6 +264,11 @@ them to return raw chain data.
 - Graceful SIGINT/SIGTERM with in-flight turn drain.
 - Transient-error retry with exponential backoff against Anthropic 429/5xx.
 - Token-aware prompt cache (static prefix + per-turn temporal + per-user notes tail).
+- NYSE holiday calendar through 2027 in the temporal block: the
+  system prompt labels Christmas / MLK Day / etc. as "market closed
+  for <holiday>" and the three early-close days as "shortened
+  session, closes at 13:00 ET" so the model doesn't tell traders
+  the market is open on a holiday.
 - Per-user rate limit (default 10/min sliding window).
 - Per-user daily cost cap from the turns audit log (`DAILY_USER_COST_CAP_USD`).
 - Per-turn cost audit (input/output/cache_write/cache_read priced per
