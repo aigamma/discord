@@ -34,6 +34,17 @@ test('prompt: contains the 25-delta risk reversal definition', () => {
   assert.ok(p.includes('put-wing-minus-call-wing') || p.includes('25-delta put') && p.includes('25-delta call'));
 });
 
+test('prompt: defines GEX sign convention so model interprets net_gex consistently', () => {
+  const p = buildSystemPrompt();
+  // The convention pin: positive net_gex = dealers long gamma = pinning.
+  // Without this in the prompt, model outputs flip-flop on which sign
+  // means which regime turn-to-turn.
+  assert.ok(p.includes('net_gex') || p.includes('GEX'));
+  assert.ok(p.includes('long gamma'));
+  assert.ok(p.includes('short gamma'));
+  assert.ok(p.includes('volatility flip') || p.includes('vol_flip'));
+});
+
 test('prompt: temporal context block carries a current ET timestamp', () => {
   const p = buildSystemPrompt();
   assert.ok(p.includes('[TIME AND MARKET SESSION]'));
