@@ -320,14 +320,16 @@ async function answerInner({
   const cost = priceUsage(model, usage);
 
   if (!finalText && toolRounds >= MAX_TOOL_ROUNDS) {
-    const truncationNote = '_(Hit the tool-use round limit. The bot stopped chaining tools to bound cost.)_';
+    const truncationNote = '_(Hit the agent round limit; the bot stopped to bound cost.)_';
     // Preserve any preamble text the model emitted during the rounds so
     // the user sees the partial answer instead of having streamed content
-    // vanish under the placeholder.
+    // vanish under the placeholder. 'Round limit' rather than 'tool-use
+    // round limit' because pause_turn rounds also count and don't involve
+    // tools.
     finalText = runningText.trim()
       ? runningText.trim() + '\n\n' + truncationNote
       : truncationNote;
-    stopReason = 'tool_rounds_exceeded';
+    stopReason = 'rounds_exceeded';
   }
 
   // Truncation hint: when Anthropic stops because the response hit
