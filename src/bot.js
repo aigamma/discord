@@ -531,6 +531,15 @@ async function handleSlashCommand(interaction) {
     case 'notes':          return handleListNotes(interaction);
     case 'forget-notes':   return handleForgetNotes(interaction);
     case 'export':         return handleExport(interaction);
+    default:
+      // Unknown command — most often happens when a command was registered
+      // by an older version of the bot and is no longer routed. Avoid the
+      // 'Interaction failed' Discord default by sending a clear message.
+      logger.warn('unknown slash command', { command: interaction.commandName });
+      await interaction.reply({
+        content: `Command \`/${interaction.commandName}\` is registered with Discord but not handled by this bot version. Run \`npm run register\` to refresh slash commands.`,
+        flags: MessageFlags.Ephemeral,
+      });
   }
 }
 
