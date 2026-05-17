@@ -7,7 +7,7 @@
 // SQLite path; the production deployment gets HNSW.
 
 import { embed, blobToVec, cosineSimilarity, isEnabled as voyageEnabled } from '../embeddings.js';
-import { iterEmbeddedUserMessages, getAssistantResponseFor } from '../memory.js';
+import { iterEmbeddedUserMessages, getAssistantResponseFor, getGuildIdFor } from '../memory.js';
 import { searchChatMemoryRpc, isEnabled as pgvectorEnabled } from '../pgvector.js';
 import { config } from '../config.js';
 import { db } from '../db.js';
@@ -51,19 +51,29 @@ export const spec = {
         type: 'string',
         description: 'Optional Discord channel ID. If set, only past conversations from this channel are considered.',
       },
+      guild_id: {
+        type: 'string',
+        description: 'Optional Discord guild (server) ID. When set, results are restricted to channels in this guild — protects against cross-guild leakage from DMs of other users.',
+      },
     },
     required: ['query'],
   },
 };
 
-async function searchPgvector(queryVec, k, minSim, channelId) {
+async function searchPgvector(queryVec, k, minSim, channelId, guildId) {
+  // Over-fetch slightly so guild filtering doesn't shrink the result set
+  // below the caller's requested k. Cheap on HNSW.
+  const overfetch = guildId ? Math.min(k * 3, 30) : k;
   const rows = await searchChatMemoryRpc({
     queryEmbedding: queryVec,
-    matchCount: k,
+    matchCount: overfetch,
     similarityFloor: minSim,
     channelId,
   });
-  return rows.map((r) => ({
+  const filtered = guildId
+    ? rows.filter((r) => getGuildIdFor(r.local_id) === guildId)
+    : rows;
+  return filtered.slice(0, k).map((r) => ({
     similarity: +Number(r.similarity).toFixed(3),
     asked_by: r.username || r.user_id,
     asked_at: r.created_at,
@@ -74,11 +84,12 @@ async function searchPgvector(queryVec, k, minSim, channelId) {
   }));
 }
 
-function searchSqliteFallback(queryVec, k, minSim, channelId) {
+function searchSqliteFallback(queryVec, k, minSim, channelId, guildId) {
   const heap = [];
   let scanned = 0;
   for (const row of iterEmbeddedUserMessages()) {
     if (channelId && row.channel_id !== channelId) continue;
+    if (guildId && row.guild_id !== guildId) continue;
     scanned++;
     const vec = blobToVec(row.embedding);
     const sim = cosineSimilarity(queryVec, vec);
@@ -104,7 +115,7 @@ function searchSqliteFallback(queryVec, k, minSim, channelId) {
   };
 }
 
-export async function execute({ query, limit = 5, channel_id = null } = {}) {
+export async function execute({ query, limit = 5, channel_id = null, guild_id = null } = {}) {
   if (!voyageEnabled()) {
     return { error: 'Semantic search is not configured (Voyage embeddings disabled).' };
   }
@@ -120,7 +131,7 @@ export async function execute({ query, limit = 5, channel_id = null } = {}) {
   // when Supabase is not configured.
   if (pgvectorEnabled()) {
     try {
-      const hits = await searchPgvector(queryVec, k, minSim, channel_id);
+      const hits = await searchPgvector(queryVec, k, minSim, channel_id, guild_id);
       return {
         query,
         backend: 'pgvector_hnsw',
@@ -132,7 +143,7 @@ export async function execute({ query, limit = 5, channel_id = null } = {}) {
     }
   }
 
-  const local = searchSqliteFallback(queryVec, k, minSim, channel_id);
+  const local = searchSqliteFallback(queryVec, k, minSim, channel_id, guild_id);
   return {
     query,
     backend: 'sqlite_cosine',

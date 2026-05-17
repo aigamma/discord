@@ -81,10 +81,16 @@ const countPendingEmbeddings = db.prepare(`
 `);
 
 const selectEmbeddedUserMessages = db.prepare(`
-  SELECT m.id, m.channel_id, m.user_id, m.username, m.content, m.created_at, m.embedding
+  SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.content, m.created_at, m.embedding
   FROM messages m
   WHERE m.embedding IS NOT NULL AND m.role = 'user'
 `);
+
+const selectGuildIdFor = db.prepare(`SELECT guild_id FROM messages WHERE id = ? LIMIT 1`);
+export function getGuildIdFor(localId) {
+  const row = selectGuildIdFor.get(localId);
+  return row?.guild_id ?? null;
+}
 
 const selectAssistantForUser = db.prepare(`
   SELECT m.content, m.created_at

@@ -262,6 +262,11 @@ async function handleSearch(interaction) {
     query,
     limit: 5,
     channel_id: scope === 'channel' ? interaction.channelId : null,
+    // When scope is 'all', restrict to the caller's guild so DM rows from
+    // other users (guild_id=null) and rows from other guilds are excluded.
+    // null guildId from a guild-channel call is impossible by the earlier
+    // scope-downgrade check.
+    guild_id: scope === 'all' ? interaction.guildId : null,
   });
 
   if (result.error) {
