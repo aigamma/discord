@@ -458,7 +458,7 @@ async function handleAbout(interaction) {
     .setTitle('Strategic Trading Bot')
     .setColor(0x4a9eff)
     .setDescription(
-      'Sonnet 4.6 with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for Options Alchemy.'
+      `Sonnet 4.6 with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for ${config.operator.communityName}.`
     )
     .addFields(
       {
@@ -482,7 +482,7 @@ async function handleAbout(interaction) {
         value: 'No fluff. No closing hooks. Final sentence declarative. Numbers always sourced from a tool; no invented values.',
       },
     )
-    .setFooter({ text: 'Author: Blue (Eric Allione) · github.com/aigamma · MIT licensed' });
+    .setFooter({ text: `Author: ${config.operator.handle} (${config.operator.name}) · MIT licensed` });
 
   await interaction.reply({ embeds: [embed] });
 }
