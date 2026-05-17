@@ -48,7 +48,36 @@ first within each section. Versioning is incremental; pre-1.0 only.
   repliedUser: true}` so model output containing `<@id>` or
   `@everyone` doesn't fire notifications.
 
+### Security
+- DuckDB SELECT-only guard extended with a function-name deny list
+  (`read_csv`, `read_parquet`, `read_json`, `read_text`, `read_blob`,
+  `glob`, `parquet_scan/metadata`, `copy_database`, `load_extension`,
+  etc.) so a prompt-injected `SELECT * FROM read_csv('/etc/passwd')`
+  can't slip past the keyword guard. Backed by engine-level
+  `SET enable_external_access = false` + `SET lock_configuration = true`
+  applied after shards attach.
+
 ### Fixed
+- `/healthz` reflects real Discord shard state. Before this, a
+  Kubernetes liveness probe saw 200 while the shard was disconnected
+  or reconnecting; orchestrators never rotated traffic away.
+- `realizedCorrelations` `limit` parameter scales with basket size
+  AND lookback. Was hardcoded to `basket.length * 400`, which silently
+  truncated the back half of the basket on the maximum 1260-day
+  lookback.
+- `/search` no longer prints "scanned undefined messages" on the
+  pgvector path. Path-aware status text reports the SQLite scan count
+  when applicable and the backend label otherwise.
+- `MessageCreate` handler wraps `handleMention` in an error boundary
+  matching the other event handlers; a malformed @mention no longer
+  becomes an unhandled rejection that exits the process.
+- `package.json` scripts and Dockerfile CMD aligned on
+  `--env-file-if-exists=.env.local` so operator scripts run inside
+  containers with orchestrator-injected env vars instead of throwing
+  ENOENT.
+- Prompt cache-break marker pinned by test: `prompt.js` and `agent.js`
+  must agree on `\n\n[TIME AND MARKET SESSION]` or prompt caching
+  silently misses on every turn.
 - `progressReporter.finalize` is idempotent; a `cancel()` path stops
   pending edits without landing one.
 - In-flight `releaseWork()` guaranteed by a top-level try/finally;
