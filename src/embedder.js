@@ -84,16 +84,18 @@ async function tick() {
   if (running) return;
   running = true;
   try {
-    await embedTick();
-  } catch (err) {
-    failures++;
-    logger.error('embedder embed tick failed', { err });
-  }
-  try {
-    await pgvectorTick();
-  } catch (err) {
-    failures++;
-    logger.error('embedder pgvector sync failed', { err });
+    try {
+      await embedTick();
+    } catch (err) {
+      failures++;
+      try { logger.error('embedder embed tick failed', { err }); } catch { /* logger refused */ }
+    }
+    try {
+      await pgvectorTick();
+    } catch (err) {
+      failures++;
+      try { logger.error('embedder pgvector sync failed', { err }); } catch { /* logger refused */ }
+    }
   } finally {
     running = false;
   }
