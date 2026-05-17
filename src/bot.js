@@ -206,7 +206,13 @@ async function handleUsage(interaction) {
     .addFields(
       { name: 'Turns', value: String(total.turns ?? 0), inline: true },
       { name: 'Cost', value: formatUsd(total.cost_usd ?? 0), inline: true },
-      { name: 'Avg latency', value: total.avg_latency_ms ? `${Math.round(total.avg_latency_ms)}ms` : 'n/a', inline: true },
+      {
+        name: 'Latency',
+        value: total.avg_latency_ms
+          ? `avg ${Math.round(total.avg_latency_ms)}ms · p50 ${data.p50_latency_ms ?? 'n/a'}ms · p95 ${data.p95_latency_ms ?? 'n/a'}ms`
+          : 'n/a',
+        inline: false,
+      },
       { name: 'Input tokens', value: (total.input_tokens ?? 0).toLocaleString(), inline: true },
       { name: 'Output tokens', value: (total.output_tokens ?? 0).toLocaleString(), inline: true },
       { name: 'Cache read tokens', value: (total.cache_read_tokens ?? 0).toLocaleString(), inline: true },

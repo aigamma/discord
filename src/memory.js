@@ -534,6 +534,16 @@ const selectUsageSummary = db.prepare(`
   WHERE created_at >= ?
 `);
 
+// Pull the sorted latencies separately so /usage can compute p50/p95.
+// SQLite older than 3.43 doesn't ship PERCENTILE_CONT; doing the sort
+// in JS sidesteps the version dependency and the cost is bounded by
+// the time window (typically <1k turns/day for this community).
+const selectTurnLatencies = db.prepare(`
+  SELECT latency_ms FROM turns
+  WHERE created_at >= ? AND latency_ms IS NOT NULL
+  ORDER BY latency_ms ASC
+`);
+
 const selectUsageByUser = db.prepare(`
   SELECT user_id, COUNT(*) AS turns, SUM(cost_usd) AS cost_usd, SUM(input_tokens + output_tokens) AS tokens
   FROM turns
@@ -580,9 +590,15 @@ export function usageSummary(hours = 24) {
   } catch {
     byTool = [];
   }
+  // p50/p95 derived in JS over the sorted latency rows so SQLite version
+  // skew on PERCENTILE_CONT doesn't matter. Empty window -> nulls.
+  const latencies = selectTurnLatencies.all(since).map((r) => r.latency_ms);
+  const pct = (p) => latencies.length ? latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))] : null;
   return {
     window_hours: hours,
     total: selectUsageSummary.get(since),
+    p50_latency_ms: pct(0.5),
+    p95_latency_ms: pct(0.95),
     by_user: selectUsageByUser.all(since),
     by_model: selectUsageByModel.all(since),
     by_tool: byTool,
