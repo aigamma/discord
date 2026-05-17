@@ -149,6 +149,23 @@ async function handleAsk(interaction) {
 }
 
 async function handleSummarize(interaction) {
+  const rl = checkRateLimit(interaction.user.id);
+  if (!rl.allowed) {
+    await interaction.reply({
+      content: `Rate limited. ${rl.count}/${rl.limit} requests used this minute. Try again in ${rl.retryInSeconds}s.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const bud = checkBudget(interaction.user.id);
+  if (!bud.allowed) {
+    await interaction.reply({
+      content: `Daily cost cap of $${bud.cap.toFixed(2)} reached. Resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const limit = interaction.options.getInteger('messages') || 100;
   await interaction.deferReply();
   const reporter = createProgressReporter({
