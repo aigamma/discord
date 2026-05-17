@@ -139,12 +139,21 @@ foreign keys on, idempotent migrations tracked in `schema_meta`. Tables:
 - `turns` (audit: per-turn token usage, cost, latency, stop reason, error, FK to messages)
 - `pgvector_sync` (which embedded rows have been pushed to Supabase)
 - `feedback` (👍/👎 reactions on assistant messages)
+- `user_notes` (per-user persistent context from /remember)
+- `channel_cutoffs` (non-destructive /forget cutoff per channel — context loader filters before this timestamp)
 - `schema_meta` (migration tracker)
 
+Migrations 001 messages → 002 turns → 003 pgvector_sync → 004 feedback →
+005 user_notes → 006 channel_cutoffs. Idempotent on the schema_meta
+name list, so re-running on an existing store is a no-op.
+
 **Supabase pgvector** at `discord_chat_memory` (1024-dim vector + HNSW
-index + cosine distance). The bot uses the project's secret key for the
-background writer and the search RPC. The migration SQL ships at
-`migrations/discord_chat_memory_001.sql` for fresh deployments.
+index + cosine distance + UNIQUE constraint on local_id). The bot uses
+the project's secret key for the background writer and the search RPC,
+and upserts pass `on_conflict=local_id` so re-syncs replace rather than
+duplicate. Migration SQL ships at `migrations/discord_chat_memory_001.sql`
+(table + RPC) and `migrations/discord_chat_memory_002_unique_local_id.sql`
+(the on-conflict key) for fresh deployments.
 
 ## Observability
 
@@ -155,9 +164,17 @@ carry default fields.
 
 `/health` and `/usage` are the in-Discord observability surfaces.
 `/health` shows pid/uptime/RSS, attached shards, embedder queue depth,
-pgvector reachability with measured latency, capability on/off flags.
-`/usage` shows turns/cost/tokens/latency aggregated over a window with
-per-model and feedback breakdowns.
+pgvector reachability with measured latency, capability on/off flags,
+SQLite integrity probe, and tool cache stats. `/usage` shows
+turns/cost/tokens/latency aggregated over a window with per-model,
+per-tool, feedback up/down, and (when enabled) per-caller daily-cap
+breakdowns. Cost includes Anthropic's server-tool charges (web_search
+at $10 / 1000 requests) accumulated across all rounds of a turn.
+
+`/admin feedback` (owner-only) shows recent thumbs-down with both the
+original question and the bot's reply joined through the turns table,
+so the operator can postmortem quality issues without manual log
+chasing.
 
 ## Lifecycle
 
