@@ -683,6 +683,18 @@ export function buildClient() {
     partials: [Partials.Channel, Partials.Message, Partials.Reaction],
   });
 
+  client.on(Events.Error, (err) => {
+    logger.error('discord client error', { err });
+  });
+
+  client.on(Events.Warn, (msg) => {
+    logger.warn('discord client warn', { msg });
+  });
+
+  client.on(Events.ShardError, (err, shardId) => {
+    logger.error('discord shard error', { err, shard_id: shardId });
+  });
+
   client.once(Events.ClientReady, (c) => {
     logger.info('discord ready', {
       bot_tag: c.user.tag,
