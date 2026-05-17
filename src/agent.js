@@ -295,6 +295,15 @@ async function answerInner({
     stopReason = 'tool_rounds_exceeded';
   }
 
+  // Truncation hint: when Anthropic stops because the response hit
+  // max_tokens, the visible reply is mid-sentence. The user deserves a
+  // signal rather than wondering why the bot trailed off. Appended only
+  // when text was produced; otherwise the empty-response placeholder
+  // path handles it.
+  if (stopReason === 'max_tokens' && finalText) {
+    finalText += '\n\n_(response truncated at the max-tokens limit)_';
+  }
+
   // Persistence is best-effort against the user-visible reply. If the
   // SQLite store is full or temporarily broken, the user still gets the
   // model's answer; we just lose the audit row for that turn.
