@@ -79,6 +79,44 @@ test('memory: usageSummary aggregates over the window', () => {
   assert.ok(u.by_model.some((m) => m.model === 'claude-sonnet-4-6'));
 });
 
+test('memory: usageSummary by_tool aggregates per-tool latency from JSON entries', () => {
+  // Persist an assistant message with tool_uses entries that carry
+  // latency_ms (the new per-tool latency field). The query should
+  // surface avg_latency_ms on the by_tool breakdown.
+  const userId = 'tool-latency-' + Date.now();
+  const aM = persistMessage({
+    channelId: ch,
+    userId: 'bot',
+    role: 'assistant',
+    content: 'reply',
+    toolUses: [
+      { name: 'get_vix_family_latest', input: {}, round: 0, latency_ms: 120 },
+      { name: 'get_vix_family_latest', input: {}, round: 0, latency_ms: 180 },
+      { name: 'get_iv_percentile', input: { lookback_days: 60 }, round: 1, latency_ms: 250 },
+    ],
+  });
+  const uM = persistMessage({ channelId: ch, userId, role: 'user', content: 'q' });
+  persistTurn({
+    channelId: ch, userId,
+    userMessageId: uM, assistantMessageId: aM,
+    model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 2,
+    inputTokens: 100, outputTokens: 50, cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0, costUsd: 0.01, latencyMs: 1000, error: null,
+  });
+
+  const u = usageSummary(24);
+  const vix = u.by_tool.find((t) => t.tool === 'get_vix_family_latest');
+  const iv = u.by_tool.find((t) => t.tool === 'get_iv_percentile');
+  assert.ok(vix && vix.calls >= 2);
+  assert.ok(iv && iv.calls >= 1);
+  // VIX entries average 120/180 → 150ms; iv is 250ms.
+  // Other tests may have added entries; allow a range.
+  assert.ok(vix.avg_latency_ms >= 100 && vix.avg_latency_ms <= 300,
+    `vix avg latency outside expected range: ${vix.avg_latency_ms}`);
+  assert.ok(iv.avg_latency_ms >= 100 && iv.avg_latency_ms <= 300,
+    `iv avg latency outside expected range: ${iv.avg_latency_ms}`);
+});
+
 test('memory: findAssistantMessage by discord_message_id roundtrip', () => {
   const aMid = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'attached' });
   attachDiscordMessageId(aMid, 'discord-msg-999');
