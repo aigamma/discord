@@ -122,6 +122,21 @@ test('prompt: weekend correctly labeled outside calendar logic', () => {
   assert.ok(/weekend/.test(block));
 });
 
+test('prompt: year past the calendar still produces a valid session label', () => {
+  // 2030-12-25 is a Wednesday — outside the NYSE_HOLIDAYS map (which
+  // covers through 2027). Code must fall back to weekday/time logic
+  // instead of throwing or labeling weirdly. A separate warn fires
+  // through logger.warn — not asserted here, just exercised.
+  const futureDate = new Date('2030-12-25T17:00:00.000Z'); // 12:00 ET in winter
+  const block = _buildTemporalContextForTest(futureDate);
+  // Wednesday at noon ET would normally be regular session. Without the
+  // 2030 holiday data, we hit that branch rather than a holiday branch.
+  assert.ok(/regular session|early-close/.test(block),
+    `expected weekday fallback label; got: ${block}`);
+  // The Market session field must still be present and non-empty.
+  assert.ok(/Market session: \S+/.test(block));
+});
+
 // agent.js splits the prompt at exactly `\n\n[TIME AND MARKET SESSION]`
 // so the static prefix carries cache_control: ephemeral and the per-turn
 // temporal tail varies freely. If prompt composition drifts (someone
