@@ -454,13 +454,23 @@ async function handleAdmin(interaction) {
     } else if (sub === 'feedback') {
       const hours = interaction.options.getInteger('hours') || 168;
       const r = feedbackReport(hours);
-      const lines = r.rows.slice(0, 15).map((f) => {
+      const header = `**Feedback in last ${hours}h** (${r.count} entries)\n`;
+      const budget = 1900 - header.length; // leave headroom under the 2000-char limit
+      let body = '';
+      let included = 0;
+      for (const f of r.rows.slice(0, 15)) {
         const when = new Date(f.created_at).toISOString().slice(0, 16).replace('T', ' ');
         const tag = f.sentiment === 'up' ? '👍' : '👎';
         const snippet = (f.reply_content || '').slice(0, 80).replace(/\n/g, ' ');
-        return `${tag} ${when} <@${f.user_id}> · ${snippet}`;
-      }).join('\n');
-      await interaction.editReply(`**Feedback in last ${hours}h** (${r.count} entries)\n${lines || '_(none)_'}`);
+        const line = `${tag} ${when} <@${f.user_id}> · ${snippet}\n`;
+        if (body.length + line.length > budget) break;
+        body += line;
+        included++;
+      }
+      const truncatedNote = included < Math.min(r.rows.length, 15)
+        ? `\n_(${r.rows.length - included} more not shown)_`
+        : '';
+      await interaction.editReply(header + (body || '_(none)_') + truncatedNote);
     }
   } catch (err) {
     logger.error('admin subcommand failed', { sub, err });
