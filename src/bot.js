@@ -38,6 +38,7 @@ import { createProgressReporter } from './progressReporter.js';
 import { checkBudget, isBudgetEnabled } from './budget.js';
 import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, triggerBackup } from './admin.js';
 import { setDiscordConnected } from './healthServer.js';
+import { db } from './db.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -361,7 +362,6 @@ async function handleHealth(interaction) {
   // 'ok' on a clean store. Anything else is a flag for the operator.
   let integrity;
   try {
-    const { db } = await import('./db.js');
     const row = db.prepare('PRAGMA integrity_check(1)').get();
     integrity = row?.integrity_check === 'ok' ? 'ok' : `degraded: ${row?.integrity_check ?? 'unknown'}`;
   } catch (err) {
