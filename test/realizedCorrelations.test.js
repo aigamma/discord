@@ -97,6 +97,34 @@ test('realizedCorrelations: produces an upper-triangle pair list', async () => {
   }
 });
 
+test('realizedCorrelations: drops dates with a null close for any basket symbol', async () => {
+  // Day-7 has a null close for XLK; that date must not enter the
+  // intersection-aligned arrays. Without the intake filter, Number(null)
+  // would coerce to 0 and pass `Number.isFinite(row[s])`, then
+  // logReturnsFromCloses would emit log(0/X) = -Infinity for that day.
+  const rows = [];
+  const startMs = Date.now() - 29 * 86400 * 1000;
+  for (let d = 0; d < 30; d++) {
+    const date = new Date(startMs + d * 86400 * 1000).toISOString().slice(0, 10);
+    rows.push({ symbol: 'XLB', trading_date: date, close: 100 + d * 0.5 });
+    const xlkClose = d === 7 ? null : 100 + d * 0.3 + Math.sin(d) * 0.4;
+    rows.push({ symbol: 'XLK', trading_date: date, close: xlkClose });
+  }
+  const restore = stubFetch(async () => rows);
+  try {
+    const r = await execute({ symbols: ['XLB', 'XLK'], lookback_days: 30 });
+    assert.ok(!r.error, `expected ok result, got ${r.error}`);
+    // 29 trading days survive (30 - 1 dropped); returns array is days - 1.
+    assert.equal(r.trading_days_used, 28, `expected 28 returns, got ${r.trading_days_used}`);
+    // The correlation must be a real number, not null/NaN.
+    const pair = r.pairs[0];
+    assert.ok(pair.corr != null && Number.isFinite(pair.corr),
+      `expected finite corr, got ${pair.corr}`);
+  } finally {
+    restore();
+  }
+});
+
 test('realizedCorrelations: a constant series produces null corr, not NaN', async () => {
   // Constant close for one symbol means zero variance -> denom = 0 in
   // pearson(). Before the audit fix, the caller's `c != null` check
