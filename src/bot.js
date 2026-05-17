@@ -405,9 +405,24 @@ async function handleListNotes(interaction) {
     });
     return;
   }
-  const lines = notes.map((n, i) => `${i + 1}. ${n.content}`).join('\n');
+  // 12 notes × 280 char max each + numbering can exceed Discord's 2000-
+  // char message ceiling and produces a 400. Render the first page that
+  // fits and tell the user how many were omitted.
+  const header = `**Your notes (${notes.length})**\n`;
+  const budget = MAX_DISCORD_MESSAGE - header.length - 40; // headroom for trailer
+  let body = '';
+  let included = 0;
+  for (let i = 0; i < notes.length; i++) {
+    const line = `${i + 1}. ${notes[i].content}\n`;
+    if (body.length + line.length > budget) break;
+    body += line;
+    included++;
+  }
+  const trailer = included < notes.length
+    ? `_(${notes.length - included} more not shown — use_ \`/forget-notes\` _to reset)_`
+    : '';
   await interaction.reply({
-    content: `**Your notes (${notes.length})**\n${lines}`,
+    content: header + body + trailer,
     flags: MessageFlags.Ephemeral,
   });
 }
