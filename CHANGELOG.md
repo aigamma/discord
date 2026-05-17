@@ -58,6 +58,25 @@ first within each section. Versioning is incremental; pre-1.0 only.
   applied after shards attach.
 
 ### Fixed
+- `ivPercentile` and `gexHistory` no longer report nonsensical
+  percentile rank when the most recent ingest left the tail row's
+  numeric column null. `Number(null) === 0` silently slid past the
+  `Number.isFinite(Number(x))` filter; explicit null guard plus
+  fallback to the last row with a usable value.
+- `stockHistory.latest_close` no longer reports 0 when the tail row's
+  close is null (same Number(null)===0 trap).
+- `realizedCorrelations` drops null/non-positive closes at intake and
+  hardens Pearson against NaN / zero variance — previously a single
+  bad row poisoned the aggregate.
+- `/notes` paginates so 12 long notes don't exceed Discord's 2000-char
+  message ceiling.
+- `/admin feedback` truncation note fires when more than 15 rows
+  exist, not just when the 2000-char budget breaks early.
+- `searchChatHistory` SQLite fallback explicitly filters NaN
+  similarity; a corrupted embedding blob would otherwise slide past
+  `sim < minSim` (NaN comparisons are always false).
+- Embedder's initial 1-second tick is cancellable so a SIGTERM in the
+  first second of process life can't race the SQLite close.
 - `/healthz` reflects real Discord shard state. Before this, a
   Kubernetes liveness probe saw 200 while the shard was disconnected
   or reconnecting; orchestrators never rotated traffic away.
