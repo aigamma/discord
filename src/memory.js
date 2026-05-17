@@ -591,9 +591,20 @@ export function usageSummary(hours = 24) {
     byTool = [];
   }
   // p50/p95 derived in JS over the sorted latency rows so SQLite version
-  // skew on PERCENTILE_CONT doesn't matter. Empty window -> nulls.
+  // skew on PERCENTILE_CONT doesn't matter. Linear-interpolation
+  // percentile (R-7 / Excel.PERCENTILE.INC convention): index =
+  // (n-1)*p, interpolate between floor and ceil values.
   const latencies = selectTurnLatencies.all(since).map((r) => r.latency_ms);
-  const pct = (p) => latencies.length ? latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))] : null;
+  const pct = (p) => {
+    if (latencies.length === 0) return null;
+    if (latencies.length === 1) return Math.round(latencies[0]);
+    const idx = (latencies.length - 1) * p;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return Math.round(latencies[lo]);
+    const frac = idx - lo;
+    return Math.round(latencies[lo] + frac * (latencies[hi] - latencies[lo]));
+  };
   return {
     window_hours: hours,
     total: selectUsageSummary.get(since),

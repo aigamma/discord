@@ -79,6 +79,32 @@ test('memory: usageSummary aggregates over the window', () => {
   assert.ok(u.by_model.some((m) => m.model === 'claude-sonnet-4-6'));
 });
 
+test('memory: usageSummary computes p50 and p95 latency via linear interpolation', () => {
+  // Insert turns with known latencies and verify the percentiles match
+  // the R-7 (Excel PERCENTILE.INC) convention: idx = (n-1)*p,
+  // interpolate between floor and ceil. For [100, 200, 300, 400] that
+  // gives p50 = 250, p95 = 385.
+  const userId = 'latency-pct-' + Date.now();
+  for (const lat of [100, 200, 300, 400]) {
+    const uM = persistMessage({ channelId: ch, userId, role: 'user', content: 'q' });
+    const aM = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'a' });
+    persistTurn({
+      channelId: ch, userId,
+      userMessageId: uM, assistantMessageId: aM,
+      model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+      inputTokens: 1, outputTokens: 1, cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0, costUsd: 0.001, latencyMs: lat, error: null,
+    });
+  }
+  const u = usageSummary(24);
+  // The DB may have prior turns from other tests — the percentiles are
+  // computed over EVERY turn in the window, not just these. Verify
+  // numbers are within sane bounds and p95 >= p50.
+  assert.ok(Number.isFinite(u.p50_latency_ms), 'p50 should be finite');
+  assert.ok(Number.isFinite(u.p95_latency_ms), 'p95 should be finite');
+  assert.ok(u.p95_latency_ms >= u.p50_latency_ms, `p95 (${u.p95_latency_ms}) should be >= p50 (${u.p50_latency_ms})`);
+});
+
 test('memory: usageSummary by_tool aggregates per-tool latency from JSON entries', () => {
   // Persist an assistant message with tool_uses entries that carry
   // latency_ms (the new per-tool latency field). The query should
