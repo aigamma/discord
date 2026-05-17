@@ -281,15 +281,21 @@ async function handleSearch(interaction) {
     await interaction.editReply(`Search error: ${result.error}`);
     return;
   }
+  // Only the SQLite fallback reports a corpus_scanned count (it has to
+  // scan the whole table). pgvector returns top-K from the HNSW index
+  // without a scan count; just label the backend in that case.
+  const corpusNote = result.backend === 'sqlite_cosine'
+    ? `scanned ${result.corpus_scanned} message(s)`
+    : `via ${result.backend}`;
   if (!result.hits.length) {
-    await interaction.editReply(`No matches above the similarity floor (scanned ${result.corpus_scanned} messages).`);
+    await interaction.editReply(`No matches above the similarity floor (${corpusNote}).`);
     return;
   }
 
   const embed = new EmbedBuilder()
     .setTitle(`Search results for "${query.slice(0, 80)}"`)
     .setColor(0x4a9eff)
-    .setFooter({ text: `${result.hits.length} hit(s) · scanned ${result.corpus_scanned} messages` });
+    .setFooter({ text: `${result.hits.length} hit(s) · ${corpusNote}` });
 
   for (const h of result.hits.slice(0, 5)) {
     const when = new Date(h.asked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
