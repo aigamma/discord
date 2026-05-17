@@ -293,8 +293,8 @@ async function answerInner({
   // Persistence is best-effort against the user-visible reply. If the
   // SQLite store is full or temporarily broken, the user still gets the
   // model's answer; we just lose the audit row for that turn.
-  let userMessageId = null;
-  let assistantMessageId = null;
+  let userMessageId;
+  let assistantMessageId;
   try {
     userMessageId = persistMessage({
       channelId, guildId, userId, username, discordMessageId,
