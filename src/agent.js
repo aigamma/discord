@@ -141,6 +141,28 @@ export async function answer({
     throw new Error('Bot is shutting down; new requests refused.');
   }
   const releaseWork = beginWork();
+  try {
+    return await answerInner({
+      channelId, guildId, userId, username, discordMessageId, isMultiUser,
+      userMessage, modelOverride, onProgress, onToolStart,
+    });
+  } finally {
+    releaseWork();
+  }
+}
+
+async function answerInner({
+  channelId,
+  guildId,
+  userId,
+  username,
+  discordMessageId,
+  isMultiUser,
+  userMessage,
+  modelOverride,
+  onProgress,
+  onToolStart,
+}) {
   const t0 = Date.now();
   const model = modelOverride || config.anthropic.model;
   const toolSpecs = getToolSpecs();
@@ -239,7 +261,6 @@ export async function answer({
       latencyMs: latency,
       error: err?.message || String(err),
     });
-    releaseWork();
     throw err;
   }
 
@@ -292,7 +313,6 @@ export async function answer({
     latency_ms: latency,
   });
 
-  releaseWork();
   return {
     text: finalText,
     toolUses: allToolUses,
