@@ -39,7 +39,7 @@ import { checkBudget, isBudgetEnabled } from './budget.js';
 import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, triggerBackup } from './admin.js';
 import { setDiscordConnected } from './healthServer.js';
 import { db } from './db.js';
-import { chunk, MAX_DISCORD_MESSAGE } from './textChunks.js';
+import { chunk, formatUsd, MAX_DISCORD_MESSAGE } from './textChunks.js';
 import { inFlightCount, isShuttingDown } from './lifecycle.js';
 import { logger } from './logger.js';
 
@@ -73,11 +73,6 @@ function isMultiUserChannel(channel) {
   return true;
 }
 
-function formatUsd(n) {
-  if (n == null || !Number.isFinite(n)) return '$0.00';
-  if (n < 0.01) return `$${n.toFixed(5)}`;
-  return `$${n.toFixed(2)}`;
-}
 
 async function handleAsk(interaction) {
   const question = interaction.options.getString('question', true).trim();

@@ -5,7 +5,37 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 
-const { chunk, MAX_DISCORD_MESSAGE } = await import('../src/textChunks.js');
+const { chunk, formatUsd, MAX_DISCORD_MESSAGE } = await import('../src/textChunks.js');
+
+test('formatUsd: null renders as $0.00', () => {
+  assert.equal(formatUsd(null), '$0.00');
+  assert.equal(formatUsd(undefined), '$0.00');
+});
+
+test('formatUsd: NaN renders as $0.00 (defensive)', () => {
+  assert.equal(formatUsd(NaN), '$0.00');
+});
+
+test('formatUsd: Infinity renders as $0.00 (defensive)', () => {
+  assert.equal(formatUsd(Infinity), '$0.00');
+  assert.equal(formatUsd(-Infinity), '$0.00');
+});
+
+test('formatUsd: micro-amounts get 5 decimals', () => {
+  assert.equal(formatUsd(0.0001), '$0.00010');
+  assert.equal(formatUsd(0.00543), '$0.00543');
+});
+
+test('formatUsd: normal amounts get 2 decimals', () => {
+  assert.equal(formatUsd(1.23), '$1.23');
+  assert.equal(formatUsd(99.5), '$99.50');
+  assert.equal(formatUsd(0.01), '$0.01');
+});
+
+test('formatUsd: zero', () => {
+  assert.equal(formatUsd(0), '$0.00000');
+});
+
 
 test('chunk: short text returns single element', () => {
   assert.deepEqual(chunk('hello world'), ['hello world']);
