@@ -30,6 +30,7 @@ import { getEmbedderStats } from './embedder.js';
 import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector.js';
 import { summarize } from './summarize.js';
 import { createProgressReporter } from './progressReporter.js';
+import { checkBudget, isBudgetEnabled } from './budget.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -93,6 +94,15 @@ async function handleAsk(interaction) {
   if (!rl.allowed) {
     await interaction.reply({
       content: `Rate limited. ${rl.count}/${rl.limit} requests used this minute. Try again in ${rl.retryInSeconds}s.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const bud = checkBudget(interaction.user.id);
+  if (!bud.allowed) {
+    await interaction.reply({
+      content: `Daily cost cap of $${bud.cap.toFixed(2)} reached. Resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h. Spent: $${bud.spent.toFixed(2)}.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -189,6 +199,14 @@ async function handleUsage(interaction) {
     embed.addFields({
       name: 'By tool',
       value: data.by_tool.slice(0, 10).map((t) => `\`${t.tool}\` ${t.calls}`).join('\n'),
+    });
+  }
+
+  if (isBudgetEnabled()) {
+    const callerBudget = checkBudget(interaction.user.id);
+    embed.addFields({
+      name: 'Your daily cap',
+      value: `$${callerBudget.spent.toFixed(4)} / $${callerBudget.cap.toFixed(2)} (resets in ${Math.ceil(callerBudget.reset_in_seconds / 3600)}h)`,
     });
   }
 
@@ -334,6 +352,12 @@ async function handleMention(message, clientId) {
   const rl = checkRateLimit(message.author.id);
   if (!rl.allowed) {
     await message.reply(`Rate limited (${rl.count}/${rl.limit} this minute). Try again in ${rl.retryInSeconds}s.`);
+    return;
+  }
+
+  const bud = checkBudget(message.author.id);
+  if (!bud.allowed) {
+    await message.reply(`Daily cost cap of $${bud.cap.toFixed(2)} reached. Resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h.`);
     return;
   }
 

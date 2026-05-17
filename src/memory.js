@@ -329,6 +329,15 @@ export function loadChannelHistoryForSummary({ channelId, limit }) {
   return desc.slice().reverse();
 }
 
+const selectUserSpendSince = db.prepare(`
+  SELECT COALESCE(SUM(cost_usd), 0) AS spend FROM turns
+  WHERE user_id = ? AND created_at >= ?
+`);
+
+export function userSpendSince(userId, sinceMs) {
+  return selectUserSpendSince.get(userId, sinceMs).spend;
+}
+
 // Aggregate usage stats over a rolling window (default 24h) for the /usage
 // command. Returns total turns, tokens, cost, plus a per-user breakdown.
 const selectUsageSummary = db.prepare(`

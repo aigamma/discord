@@ -36,6 +36,9 @@ function readEnv() {
       webSearchEnabled: (process.env.ENABLE_WEB_SEARCH || 'true').toLowerCase() !== 'false',
       webFetchEnabled: (process.env.ENABLE_WEB_FETCH || 'true').toLowerCase() !== 'false',
     },
+    budget: {
+      dailyUserCapUsd: parseFloat(process.env.DAILY_USER_COST_CAP_USD || '0'),
+    },
     supabase: {
       enabled: supabaseEnabled,
       url: supabaseUrl,
