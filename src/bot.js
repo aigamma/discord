@@ -39,6 +39,7 @@ import { checkBudget, isBudgetEnabled } from './budget.js';
 import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, triggerBackup } from './admin.js';
 import { setDiscordConnected } from './healthServer.js';
 import { db } from './db.js';
+import { chunk, MAX_DISCORD_MESSAGE } from './textChunks.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -58,24 +59,6 @@ const FEEDBACK_EMOJI = {
 // the reply-mention (the user who triggered the bot) so the reply still
 // shows the standard Discord "replying to X" indicator.
 const SAFE_ALLOWED_MENTIONS = { parse: [], repliedUser: true };
-
-const MAX_DISCORD_MESSAGE = 2000;
-
-function chunk(text) {
-  if (text.length <= MAX_DISCORD_MESSAGE) return [text];
-  const parts = [];
-  let remaining = text;
-  while (remaining.length > MAX_DISCORD_MESSAGE) {
-    let cut = remaining.lastIndexOf('\n\n', MAX_DISCORD_MESSAGE);
-    if (cut < 500) cut = remaining.lastIndexOf('\n', MAX_DISCORD_MESSAGE);
-    if (cut < 500) cut = remaining.lastIndexOf(' ', MAX_DISCORD_MESSAGE);
-    if (cut < 500) cut = MAX_DISCORD_MESSAGE;
-    parts.push(remaining.slice(0, cut));
-    remaining = remaining.slice(cut).trimStart();
-  }
-  if (remaining) parts.push(remaining);
-  return parts;
-}
 
 function stripMention(content, clientId) {
   return content
