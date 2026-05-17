@@ -202,8 +202,17 @@ the `aigamma.com` pipeline), and writes to `discord_chat_memory` (the bot's
 own table). Use the anon key in any new deployment; the bot only reads
 public tables on aigamma's schema and writes to a single table it owns.
 
-A migration to create `discord_chat_memory` with the HNSW index and the
-`search_discord_memory` RPC ships in `migrations/discord_chat_memory_001.sql`.
+Two migrations ship for a fresh Supabase deployment:
+
+- `migrations/discord_chat_memory_001.sql` — creates the
+  `discord_chat_memory` table with the HNSW index, RLS, and the
+  `search_discord_memory` RPC.
+- `migrations/discord_chat_memory_002_unique_local_id.sql` — adds the
+  `UNIQUE(local_id)` constraint the bot's upsert relies on (via
+  `on_conflict=local_id`). Required; without it, every embedder sync
+  fails with a PostgREST 'no unique constraint' error.
+
+Apply both in order via `psql` or the Supabase SQL editor.
 
 ### Voyage (semantic embeddings)
 
