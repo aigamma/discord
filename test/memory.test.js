@@ -143,6 +143,48 @@ test('memory: usageSummary by_tool aggregates per-tool latency from JSON entries
     `iv avg latency outside expected range: ${iv.avg_latency_ms}`);
 });
 
+test('memory: setEmbeddingBulk + markSyncedBulk batch SQLite writes', async () => {
+  // Insert three user messages, embed them in bulk, then mark them
+  // synced in bulk. Verify they all landed and that the resulting
+  // pgvector-pending query returns empty (since we marked them all
+  // synced). Pins the contract the embedder depends on.
+  const { setEmbeddingBulk, markSyncedBulk, getPendingPgvectorRows } =
+    await import('../src/memory.js');
+
+  const u1 = persistMessage({ channelId: ch, userId: 'bulk-u', role: 'user', content: 'bulk one' });
+  const u2 = persistMessage({ channelId: ch, userId: 'bulk-u', role: 'user', content: 'bulk two' });
+  const u3 = persistMessage({ channelId: ch, userId: 'bulk-u', role: 'user', content: 'bulk three' });
+
+  const blob = Buffer.alloc(1024 * 4); // 1024-dim Float32 = 4096 bytes
+  setEmbeddingBulk([
+    { id: u1, blob, model: 'voyage-3' },
+    { id: u2, blob, model: 'voyage-3' },
+    { id: u3, blob, model: 'voyage-3' },
+  ]);
+
+  // All three should now be pending pgvector sync
+  const pending = getPendingPgvectorRows(50);
+  const ids = pending.map((r) => r.id);
+  for (const id of [u1, u2, u3]) {
+    assert.ok(ids.includes(id), `expected ${id} in pending pgvector rows`);
+  }
+
+  markSyncedBulk([u1, u2, u3]);
+
+  // Now none should be pending
+  const stillPending = getPendingPgvectorRows(50).filter((r) => [u1, u2, u3].includes(r.id));
+  assert.equal(stillPending.length, 0);
+});
+
+test('memory: setEmbeddingBulk handles empty array as no-op', async () => {
+  const { setEmbeddingBulk, markSyncedBulk } = await import('../src/memory.js');
+  // Should not throw, should not start a transaction.
+  setEmbeddingBulk([]);
+  markSyncedBulk([]);
+  setEmbeddingBulk(null);
+  markSyncedBulk(null);
+});
+
 test('memory: findAssistantMessage by discord_message_id roundtrip', () => {
   const aMid = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'attached' });
   attachDiscordMessageId(aMid, 'discord-msg-999');
