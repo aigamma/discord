@@ -41,7 +41,10 @@ export async function execute({ lookback_days = 252 } = {}) {
     .filter((r) => Number.isFinite(r.iv_30d_cm) && Number.isFinite(r.hv_20d_yz))
     .map((r) => ({
       date: r.trading_date,
-      spx_close: Number(r.spx_close),
+      // spx_close can be null on rows where iv/hv landed but the
+      // close ingest hadn't caught up. Number(null) === 0 would
+      // print 'SPX closed at 0' to the model.
+      spx_close: r.spx_close != null && Number.isFinite(Number(r.spx_close)) ? Number(r.spx_close) : null,
       iv: Number(r.iv_30d_cm),
       hv: Number(r.hv_20d_yz),
       vrp: +(Number(r.iv_30d_cm) - Number(r.hv_20d_yz)).toFixed(4),

@@ -88,6 +88,26 @@ test('vrpHistory: all-null rows return a different structured error', async () =
   }
 });
 
+test('vrpHistory: null spx_close in valid row surfaces as null, not 0', async () => {
+  // A row can have valid iv/hv but a missing spx_close (close ingest
+  // lag). The series row must report spx_close as null rather than 0;
+  // Number(null) === 0 made the model see 'SPX at 0' alongside valid
+  // vrp readings.
+  const rows = [
+    { trading_date: daysAgo(2), spx_close: 5000, iv_30d_cm: 0.18, hv_20d_yz: 0.17 },
+    { trading_date: daysAgo(1), spx_close: null, iv_30d_cm: 0.19, hv_20d_yz: 0.17 },
+  ];
+  const restore = stubFetch(async () => rows);
+  try {
+    const r = await execute({ lookback_days: 30 });
+    assert.equal(r.series.length, 2);
+    assert.equal(r.series[0].spx_close, 5000);
+    assert.equal(r.series[1].spx_close, null, 'null close must not coerce to 0');
+  } finally {
+    restore();
+  }
+});
+
 test('vrpHistory: negative_vrp_days counts rows where iv < hv', async () => {
   const rows = [
     // 5 negative-VRP days (iv < hv)
