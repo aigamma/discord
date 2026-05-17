@@ -33,3 +33,19 @@ jobs:
           for f in src/**/*.js src/*.js scripts/*.js; do
             node --check "$f"
           done
+
+      - name: Check for accidentally-committed secrets
+        run: |
+          # Patterns for the credential formats this bot uses:
+          # sk-ant-* (Anthropic), sb_secret_* (Supabase), pa-* (Voyage),
+          # plus 24+ char Discord bot tokens (alpha-num + . + - + _).
+          # Exclude .env.example which is a template with no values.
+          if git grep -nE "sk-ant-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]{20,}|pa-[A-Za-z0-9_-]{20,}" -- ':(exclude).env.example'; then
+            echo "Possible secret committed; refusing to pass CI"
+            exit 1
+          fi
+          # Also reject any tracked .env / .env.local file
+          if git ls-files | grep -E "^\.env($|\.local$|\..*\.local$)" ; then
+            echo "An .env file is tracked; remove it before merging"
+            exit 1
+          fi
