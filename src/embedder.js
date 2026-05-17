@@ -42,10 +42,21 @@ async function embedTick() {
   const texts = rows.map((r) => r.content.slice(0, 8000));
   const vectors = await embed(texts, { inputType: 'document' });
 
+  // Defensive: if Voyage returns fewer vectors than requested (a length
+  // mismatch theoretically possible on partial response), don't write
+  // garbage to setEmbedding. Skip the orphans; the SQL query will return
+  // them again next tick. Logged so the operator can investigate.
+  let writes = 0;
   for (let i = 0; i < rows.length; i++) {
-    setEmbedding(rows[i].id, vecToBlob(vectors[i]), config.voyage.model);
+    const v = vectors[i];
+    if (!v || typeof v.byteLength !== 'number') {
+      try { logger.warn('embedder: voyage returned no vector for row', { row_id: rows[i].id, batch_index: i }); } catch { /* */ }
+      continue;
+    }
+    setEmbedding(rows[i].id, vecToBlob(v), config.voyage.model);
+    writes++;
   }
-  embedded += rows.length;
+  embedded += writes;
   embedRuns++;
 }
 
