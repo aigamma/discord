@@ -94,12 +94,17 @@ export async function execute({ symbols = null, lookback_days = 60 } = {}) {
   }
 
   // Group by symbol, build per-symbol close arrays keyed by date for
-  // intersection alignment.
+  // intersection alignment. Skip rows with null/non-positive closes —
+  // Number(null) coerces to 0, which is finite and would later produce
+  // log(0/X) = -Infinity in the log-return computation. Drop at intake.
   const byDate = {};
   const symbolsWithData = new Set();
   for (const r of rows) {
+    if (r.close == null) continue;
+    const c = Number(r.close);
+    if (!Number.isFinite(c) || c <= 0) continue;
     symbolsWithData.add(r.symbol);
-    (byDate[r.trading_date] ||= {})[r.symbol] = Number(r.close);
+    (byDate[r.trading_date] ||= {})[r.symbol] = c;
   }
 
   const dates = Object.keys(byDate).sort();
@@ -107,7 +112,10 @@ export async function execute({ symbols = null, lookback_days = 60 } = {}) {
   for (const sym of basket) aligned[sym] = [];
   for (const d of dates) {
     const row = byDate[d];
-    if (basket.every((s) => Number.isFinite(row[s]))) {
+    // Require every basket symbol to have a positive finite close on
+    // this date for the row to enter the aligned arrays; this preserves
+    // the intersection-alignment invariant Pearson expects.
+    if (basket.every((s) => Number.isFinite(row[s]) && row[s] > 0)) {
       for (const s of basket) aligned[s].push(row[s]);
     }
   }
