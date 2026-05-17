@@ -14,12 +14,19 @@ be forked.
 
 | Surface | What it does |
 |---|---|
-| `/ask <question>` | Slash-command Q&A with the model. Tool-use enabled. |
+| `/ask <question> [model:<sonnet\|opus\|haiku>]` | Slash-command Q&A with the model. Tool-use enabled. Streams progressive Discord edits as the response builds. |
 | `@bot <question>` | Mention the bot in any channel it can see. |
-| `/search <query>` | Semantic search over the bot's persisted chat history. Backed by Supabase pgvector HNSW with a local SQLite cosine fallback. |
-| `/usage [hours]` | Ephemeral token / cost / latency summary. |
-| `/health` | Process state: pgvector reachability, embedder queue, DuckDB shards, capabilities. |
+| `/search <query> [scope:<channel\|all>]` | Semantic search over the bot's persisted chat history. pgvector HNSW with SQLite cosine fallback. Results carry deep-links back to the original Discord message. |
+| `/summarize [messages:N]` | Brief of the last N (default 100) channel messages. Streaming. |
+| `/remember <note>` | Save a persistent note about yourself (≤280 chars, max 12 notes). Surfaces in every future system prompt for you. |
+| `/notes` | List your saved notes (ephemeral). |
+| `/forget-notes` | Clear all your saved notes. |
 | `/forget` | Clear this channel's short-term context window. |
+| `/usage [hours]` | Ephemeral cost / token / latency summary with per-model, per-tool, feedback breakdowns. |
+| `/health` | Process state: pgvector reachability, embedder queue, DuckDB shards, tool cache stats, SQLite integrity. |
+| `/about` | Capability tour for new community members. |
+| `/admin <subcommand>` | Owner-gated: `rebuild-embeddings`, `backup`, `reset-rate-limit`, `feedback`. |
+| 👍 / 👎 reaction | Capture quality feedback on assistant messages; rolls up in `/usage` and `/admin feedback`. |
 
 ## What the model can actually do
 
@@ -33,13 +40,17 @@ Each Anthropic API call is augmented with tool-use against:
 | `get_spx_term_structure` | Supabase | Per-expiration ATM IV and 25Δ skew |
 | `get_stock_history` | Supabase | Single-name and ETF OHLC with derived returns |
 | `get_gex_history` | Supabase | Daily SPX dealer-gamma history with percentile rank |
+| `get_realized_correlations` | Supabase | Pairwise correlation matrix over a basket (default sector ETFs) |
+| `get_vrp_history` | Supabase | Variance risk premium series with summary stats and percentile rank |
 | `search_chat_history` | pgvector + SQLite | Semantic recall over the channel's past Q&A |
 | `query_duckdb` | DuckDB shards | Read-only SELECT against multi-year option-chain, index, stock, and derived feature tables (when the backtester puller has produced them) |
 | `web_search` | Anthropic native | Current events, news, papers |
 | `web_fetch` | Anthropic native | Pull and read a specific URL |
 
-The model decides which to call per turn; tool chains up to 8 rounds per
-turn before the safety stop.
+Tool results are cached per (name, normalized-input) with per-tool TTL
+overrides; the cache short-circuits duplicate calls within the
+freshness window. The model decides which to call per turn; tool chains
+up to 8 rounds per turn before the safety stop.
 
 ## Memory model
 
@@ -213,12 +224,18 @@ them to return raw chain data.
 - Process-wide uncaught exception and unhandled rejection handlers.
 - Graceful SIGINT/SIGTERM with in-flight turn drain.
 - Transient-error retry with exponential backoff against Anthropic 429/5xx.
-- Token-aware prompt cache (static prefix + per-turn temporal block).
+- Token-aware prompt cache (static prefix + per-turn temporal + per-user notes tail).
 - Per-user rate limit (default 10/min sliding window).
+- Per-user daily cost cap from the turns audit log (`DAILY_USER_COST_CAP_USD`).
 - Per-turn cost audit (input/output/cache_write/cache_read priced per
   model, written to `turns` table; `/usage` aggregates a window).
 - Read-only DuckDB attach with SELECT-only SQL guard and 30s/1000-row caps.
-- Health endpoint surfacing every subsystem.
+- Tool-result cache with per-tool TTLs.
+- HTTP `/healthz` for orchestration probes plus the `/health` slash command for in-Discord state.
+- Online SQLite backup via `VACUUM INTO` (`npm run backup` or `/admin backup`).
+- Postmortem report (`npm run postmortem`) aggregates audit + feedback for review.
+- 62 unit tests (`npm test`) running on every CI push.
+- ESLint flat config (`npm run lint`) running on every CI push.
 
 ## License
 
