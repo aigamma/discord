@@ -52,9 +52,12 @@ function probeShards() {
   const found = [];
   for (const [name, file] of Object.entries(SHARD_FILES)) {
     const path = resolve(root, file);
-    if (existsSync(path)) {
+    if (!existsSync(path)) continue;
+    try {
       const st = statSync(path);
       found.push({ name, path, sizeBytes: st.size, mtime: st.mtime });
+    } catch (err) {
+      logger.warn('duckdb shard probe failed; skipping', { name, path, err: err?.message || String(err) });
     }
   }
   return found;
