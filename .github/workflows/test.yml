@@ -28,6 +28,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: npm audit (high+ only)
+        # Fail on high or critical advisories against the production
+        # dependency set. Moderate and below are noise on a 3-dep
+        # project; high/critical demand operator attention.
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Parse-check every source module
         run: |
           for f in src/**/*.js src/*.js scripts/*.js; do
