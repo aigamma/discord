@@ -119,10 +119,20 @@ export function attachDiscordMessageId(localId, discordMessageId) {
   if (discordMessageId) updateDiscordMessageId.run(discordMessageId, localId);
 }
 
+// Pull each pending row + its paired assistant reply in one query so the
+// embedder doesn't do an N+1 `getAssistantRowFor` per batch row. Joins:
+//   m   = the embedded message (always role='user' since we only embed
+//         user messages)
+//   t   = its audit-log turn (links user_message_id to assistant_message_id)
+//   am  = the assistant message row referenced by the turn (the reply)
+//   s   = pgvector_sync; LEFT JOIN + WHERE NULL gives "not yet synced"
 const selectPendingPgvectorSync = db.prepare(`
   SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.role,
-         m.content, m.embedding, m.embedding_model
+         m.content, m.embedding, m.embedding_model,
+         am.id AS reply_local_id, am.content AS reply_content
   FROM messages m
+  LEFT JOIN turns t ON t.user_message_id = m.id
+  LEFT JOIN messages am ON am.id = t.assistant_message_id
   LEFT JOIN pgvector_sync s ON s.local_id = m.id
   WHERE m.embedding IS NOT NULL
     AND s.local_id IS NULL

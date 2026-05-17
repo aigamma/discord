@@ -19,7 +19,6 @@ import {
   setEmbedding,
   getPendingPgvectorRows,
   markSynced,
-  getAssistantRowFor,
 } from './memory.js';
 import { upsertChatMemory, isEnabled as pgvectorEnabled } from './pgvector.js';
 
@@ -65,27 +64,21 @@ async function pgvectorTick() {
   const rows = getPendingPgvectorRows(SYNC_BATCH_SIZE);
   if (rows.length === 0) return;
 
-  const payload = rows.map((r) => {
-    const base = {
-      local_id: r.id,
-      channel_id: r.channel_id,
-      guild_id: r.guild_id,
-      user_id: r.user_id,
-      username: r.username,
-      role: r.role,
-      content: r.content,
-      embedding: blobToVec(r.embedding),
-      embedding_model: r.embedding_model,
-    };
-    if (r.role === 'user') {
-      const reply = getAssistantRowFor(r.id);
-      if (reply) {
-        base.reply_local_id = reply.local_id;
-        base.reply_content = reply.content;
-      }
-    }
-    return base;
-  });
+  // selectPendingPgvectorSync now pulls the paired assistant reply via
+  // SQL join, so we don't need a per-row getAssistantRowFor call here.
+  const payload = rows.map((r) => ({
+    local_id: r.id,
+    channel_id: r.channel_id,
+    guild_id: r.guild_id,
+    user_id: r.user_id,
+    username: r.username,
+    role: r.role,
+    content: r.content,
+    embedding: blobToVec(r.embedding),
+    embedding_model: r.embedding_model,
+    reply_local_id: r.reply_local_id ?? null,
+    reply_content: r.reply_content ?? null,
+  }));
 
   await upsertChatMemory(payload);
   for (const row of rows) markSynced(row.id);
