@@ -233,6 +233,16 @@ async function answerInner({
       toolRounds++;
       messages.push({ role: 'assistant', content: response.content });
 
+      // Capture server-side tool calls (web_search, web_fetch) for the
+      // audit log even though Anthropic executes them on our behalf.
+      // Without this, /usage's 'by tool' breakdown undercounts and the
+      // turns audit row can't explain why a turn cost what it did.
+      for (const block of response.content) {
+        if (block.type === 'server_tool_use') {
+          allToolUses.push({ name: block.name, input: block.input, round, server: true });
+        }
+      }
+
       const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
       if (onToolStart && toolUseBlocks.length > 0) {
         try { onToolStart(toolUseBlocks.map((b) => b.name)); } catch { /* swallow */ }
