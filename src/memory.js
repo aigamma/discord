@@ -417,7 +417,12 @@ export function recentFeedback({ hours = 168, limit = 20 } = {}) {
 }
 
 // Channel export: full message list with role, content, model, cost, and
-// tool uses. Excludes the binary embedding column.
+// tool uses. Excludes the binary embedding column. Capped at 10000 rows
+// so an unbounded export against a high-volume channel doesn't load
+// hundreds of MB into memory before the Discord 24MB attachment limit
+// rejects the upload anyway. Most channels won't approach this; the
+// /export response surfaces the truncation when it happens.
+const EXPORT_ROW_CAP = 10000;
 const selectChannelExport = db.prepare(`
   SELECT id, role, user_id, username, content, model,
          tool_uses, input_tokens, output_tokens, cost_usd, latency_ms,
@@ -425,10 +430,11 @@ const selectChannelExport = db.prepare(`
   FROM messages
   WHERE channel_id = ?
   ORDER BY id ASC
+  LIMIT ?
 `);
 
 export function exportChannel(channelId) {
-  const rows = selectChannelExport.all(channelId);
+  const rows = selectChannelExport.all(channelId, EXPORT_ROW_CAP);
   return rows.map((r) => ({
     id: r.id,
     role: r.role,
