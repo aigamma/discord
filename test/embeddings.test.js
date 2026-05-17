@@ -37,6 +37,23 @@ test('cosine: mismatched dimensions return -1 sentinel', () => {
   assert.equal(cosineSimilarity(a, b), -1);
 });
 
+test('cosine: NaN in one vector poisons the result (caller filters)', () => {
+  const a = new Float32Array([1, NaN, 3]);
+  const b = new Float32Array([1, 2, 3]);
+  // NaN propagation through dot product → NaN result. Caller is
+  // expected to filter NaN hits before ranking (search currently
+  // does this via the similarity_floor check, which treats NaN < N
+  // as false → skipped).
+  assert.ok(Number.isNaN(cosineSimilarity(a, b)));
+});
+
+test('cosine: zero-vector against any returns 0 (denom guard)', () => {
+  const zero = new Float32Array([0, 0, 0]);
+  const v = new Float32Array([1, 2, 3]);
+  assert.equal(cosineSimilarity(zero, v), 0);
+  assert.equal(cosineSimilarity(v, zero), 0);
+});
+
 test('blob roundtrip: vec → blob → vec preserves values', () => {
   const original = new Float32Array([0.1234, -0.5678, 1.0, -1.0, 0]);
   const blob = vecToBlob(original);
