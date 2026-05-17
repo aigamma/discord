@@ -48,3 +48,64 @@ test('supabase: 5xx status codes retried, 4xx not', () => {
   assert.equal(isTransientStatus(404), false);
   assert.equal(isTransientStatus(401), false);
 });
+
+// Integration: stub global fetch and assert the retry loop in
+// selectRows attempts twice on a transient status and returns the
+// second attempt's success, and gives up after two attempts on a
+// fatal status.
+
+const { selectRows } = await import('../src/supabase.js');
+
+function captureFetch(handlers) {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const handler = handlers[calls.length] || handlers[handlers.length - 1];
+    calls.push(url);
+    return await handler();
+  };
+  return { calls, restore: () => { globalThis.fetch = original; } };
+}
+
+test('supabase: 503 retried once, second attempt succeeds', async () => {
+  const cap = captureFetch([
+    async () => ({ ok: false, status: 503, text: async () => 'overloaded' }),
+    async () => ({ ok: true, status: 200, json: async () => [{ id: 1 }] }),
+  ]);
+  try {
+    const rows = await selectRows('test_table', { select: '*' });
+    assert.equal(cap.calls.length, 2, 'should retry once');
+    assert.deepEqual(rows, [{ id: 1 }]);
+  } finally {
+    cap.restore();
+  }
+});
+
+test('supabase: 500 (deterministic) NOT retried', async () => {
+  const cap = captureFetch([
+    async () => ({ ok: false, status: 500, text: async () => 'server error' }),
+  ]);
+  try {
+    await assert.rejects(
+      () => selectRows('test_table', { select: '*' }),
+      /HTTP 500/
+    );
+    assert.equal(cap.calls.length, 1, 'must NOT retry on 500');
+  } finally {
+    cap.restore();
+  }
+});
+
+test('supabase: ECONNRESET retried, second attempt succeeds', async () => {
+  const cap = captureFetch([
+    async () => { const e = new Error('reset'); e.code = 'ECONNRESET'; throw e; },
+    async () => ({ ok: true, status: 200, json: async () => [] }),
+  ]);
+  try {
+    const rows = await selectRows('test_table', { select: '*' });
+    assert.equal(cap.calls.length, 2);
+    assert.deepEqual(rows, []);
+  } finally {
+    cap.restore();
+  }
+});
