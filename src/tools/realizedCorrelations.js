@@ -14,7 +14,7 @@ const DEFAULT_BASKET = ['XLB', 'XLC', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLRE',
 export const spec = {
   name: 'get_realized_correlations',
   description:
-    "Pairwise realized correlation matrix from daily log returns across a basket of tickers over a chosen lookback. Default basket is the eleven SPDR sector ETFs (XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, XLY). Returns the correlation matrix in compact upper-triangle form plus the average pairwise correlation. Use when the user asks about diversification, regime changes in correlation, sector co-movement, or whether a particular pair is cointegrated. For single-stock vs index correlation, include both in the symbols list.",
+    "Pairwise realized correlation matrix from daily log returns across a basket of tickers over a chosen lookback. Default basket is the eleven SPDR sector ETFs (XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, XLY). Returns the correlation matrix in compact upper-triangle form plus the average pairwise correlation. Use when the user asks about diversification, regime changes in correlation, sector co-movement, or whether a particular pair is cointegrated. For single-stock vs index correlation, include both in the symbols list. The basket is capped at 30 distinct symbols (the rest are silently dropped) and lookback_days is clamped to [7, 1260].",
   input_schema: {
     type: 'object',
     properties: {
