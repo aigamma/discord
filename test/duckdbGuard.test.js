@@ -1,7 +1,7 @@
-// The runSelect guard lives inside duckdb.js as a closure; test it via the
-// behavior surfaced through the tool. When DuckDB has not initialized, the
-// tool returns a specific not-loaded error, so the SQL guard never runs in
-// these tests. Pull the guard predicate directly via a small re-import.
+// The runSelect guard lives in duckdb.js. Import the actual predicate
+// instead of mirroring it inline so a future regex change in the source
+// can't drift past CI — previously this file maintained its own copy of
+// the regex and was kept in sync by hand.
 
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
@@ -10,24 +10,7 @@ process.env.DISCORD_BOT_TOKEN ||= 'stub';
 process.env.DISCORD_CLIENT_ID ||= 'stub';
 process.env.ANTHROPIC_API_KEY ||= 'stub';
 
-// Re-create the same predicate inline so the test verifies the matching
-// rules without depending on DuckDB being initialized. Mirrors the regex
-// in src/duckdb.js. If the source predicate diverges, this test fails
-// loudly — a feature, not a bug.
-const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|create|alter|attach|detach|pragma|copy|export|import|truncate|grant|revoke|set)\b/i;
-const FORBIDDEN_FUNCTIONS =
-  /\b(read_csv(?:_auto)?|read_parquet|parquet_scan|parquet_metadata|parquet_schema|parquet_file_metadata|read_json(?:_auto|_objects(?:_auto)?)?|read_ndjson(?:_auto|_objects)?|read_text|read_blob|read_xml|glob|sniff_csv|copy_database|load_extension|install_extension|force_install_extension|httpfs_install|hf_install_metadata)\s*\(/i;
-
-function isReadOnlySelect(sql) {
-  if (typeof sql !== 'string') return false;
-  const trimmed = sql.trim().replace(/;\s*$/, '');
-  if (!trimmed) return false;
-  if (trimmed.includes(';')) return false;
-  if (FORBIDDEN_KEYWORDS.test(trimmed)) return false;
-  if (FORBIDDEN_FUNCTIONS.test(trimmed)) return false;
-  if (!/^(\s*with\b|\s*select\b)/i.test(trimmed)) return false;
-  return true;
-}
+const { isReadOnlySelect } = await import('../src/duckdb.js');
 
 test('duckdb guard: plain SELECT allowed', () => {
   assert.equal(isReadOnlySelect('SELECT * FROM x'), true);

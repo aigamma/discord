@@ -42,7 +42,9 @@ const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|create|alter|attach|det
 const FORBIDDEN_FUNCTIONS =
   /\b(read_csv(?:_auto)?|read_parquet|parquet_scan|parquet_metadata|parquet_schema|parquet_file_metadata|read_json(?:_auto|_objects(?:_auto)?)?|read_ndjson(?:_auto|_objects)?|read_text|read_blob|read_xml|glob|sniff_csv|copy_database|load_extension|install_extension|force_install_extension|httpfs_install|hf_install_metadata)\s*\(/i;
 
-function isReadOnlySelect(sql) {
+// Exported so tests can pin the actual predicate instead of mirroring it
+// inline. Pure function; doesn't touch the DuckDB connection.
+export function isReadOnlySelect(sql) {
   if (typeof sql !== 'string') return false;
   const trimmed = sql.trim().replace(/;\s*$/, '');
   if (!trimmed) return false;
