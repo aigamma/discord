@@ -233,11 +233,12 @@ async function answerInner({
       }
 
       if (response.stop_reason !== 'tool_use') {
-        finalText = response.content
-          .filter((b) => b.type === 'text')
-          .map((b) => b.text)
-          .join('\n')
-          .trim();
+        // Use the cross-round accumulator instead of just this round's text
+        // so a pause_turn → end_turn flow persists the full answer rather
+        // than only the resumed continuation. For tool_use → end_turn, the
+        // accumulator includes any preamble ('I'll check VIX') alongside
+        // the final answer, which is fine for search/audit purposes.
+        finalText = runningText.trim();
         break;
       }
 
