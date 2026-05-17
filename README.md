@@ -146,7 +146,7 @@ In Discord:
 Stop with `Ctrl+C`. The bot drains in-flight model turns gracefully before
 exit (30-second drain timeout, 45-second hard kill).
 
-### 6. Tests
+### 7. Tests
 
 ```bash
 npm test
@@ -161,36 +161,48 @@ SQLite-touching tests use per-process tmp stores.
 
 ```
 src/
-  index.js              Entry; runs DuckDB attach, builds client, installs lifecycle, logs in
-  config.js             Env loading + validation, fail-fast on missing required keys
-  logger.js             Structured logger (JSON for non-TTY, pretty for TTY)
-  lifecycle.js          uncaughtException / unhandledRejection / SIGINT-SIGTERM with drain
-  bot.js                discord.js client + interaction routing for all slash commands and @mention
-  agent.js              Anthropic tool-use loop, retry-with-backoff on transient errors
-  prompt.js             System prompt — composed from cacheable static prefix + per-turn temporal block
-  pricing.js            Per-model token pricing for the cost audit
-  rateLimiter.js        Per-user sliding-window rate limit
-  db.js                 SQLite open + idempotent migrations
-  memory.js             Persisted messages, audit turns, short-term context, /usage aggregates
-  embeddings.js         Voyage client (batch, retry), Float32 ↔ Buffer helpers, cosine
-  embedder.js           Background worker — embed pending, sync to pgvector
-  pgvector.js           Supabase pgvector upsert + HNSW search RPC wrapper
-  supabase.js           Thin REST wrapper for market-data tools
-  duckdb.js             Read-only attach of backtester shards, SELECT-only guarded query interface
+  index.js                  Entry; runs DuckDB attach, builds client, installs lifecycle, logs in
+  config.js                 Env loading + validation, fail-fast on missing required keys
+  logger.js                 Structured logger (JSON for non-TTY, pretty for TTY)
+  lifecycle.js              uncaughtException / unhandledRejection / SIGINT-SIGTERM with drain
+  bot.js                    discord.js client + interaction routing for all slash commands and @mention
+  agent.js                  Anthropic tool-use loop, retry-with-backoff on transient errors
+  prompt.js                 System prompt — composed from cacheable static prefix + per-turn temporal block
+  summarize.js              /summarize bypass path (dedicated system prompt, streaming, audited)
+  admin.js                  Owner-gated /admin operations (rebuild, backup, reset rate limit, feedback)
+  pricing.js                Per-model + server-tool pricing for the cost audit
+  rateLimiter.js            Per-user sliding-window rate limit
+  budget.js                 Per-user daily cost cap (midnight UTC) from the turns audit log
+  toolCache.js              In-process LRU+TTL keyed on (tool, canonicalized input)
+  progressReporter.js       Debounced Discord edits as streamed text accumulates
+  healthServer.js           Optional HTTP /healthz endpoint for orchestration probes
+  backup.js                 Online SQLite backup via VACUUM INTO, with rotation
+  db.js                     SQLite open + idempotent migrations
+  memory.js                 Persisted messages, audit turns, short-term context, /usage aggregates
+  embeddings.js             Voyage client (batch, retry), Float32 ↔ Buffer helpers, cosine
+  embedder.js               Background worker — embed pending, sync to pgvector
+  pgvector.js               Supabase pgvector upsert + HNSW search RPC wrapper
+  supabase.js               Thin REST wrapper for market-data tools
+  duckdb.js                 Read-only attach of backtester shards, SELECT-only guarded query interface
   tools/
-    index.js            Registry — only registers tools whose backend is configured
-    vixFamily.js        VIX/VVIX/term structure/cross-asset
-    ivPercentile.js     30d IV rank, realized, VRP
-    gexLevels.js        Live Vol Flip, Call Wall, Put Wall
-    termStructure.js    Per-expiration IV across the chain
-    stockHistory.js     Single-name OHLC history
-    gexHistory.js       Daily SPX GEX history with percentile rank
-    searchChatHistory.js  Semantic recall (pgvector → SQLite fallback)
-    queryDuckdb.js      Read-only SQL against the backtester shards
+    index.js                Registry — only registers tools whose backend is configured
+    vixFamily.js            VIX/VVIX/term structure/cross-asset
+    ivPercentile.js         30d IV rank, realized, VRP
+    gexLevels.js            Live Vol Flip, Call Wall, Put Wall
+    termStructure.js        Per-expiration IV across the chain
+    stockHistory.js         Single-name OHLC history
+    gexHistory.js           Daily SPX GEX history with percentile rank
+    realizedCorrelations.js Pairwise realized correlations over a basket
+    vrpHistory.js           Variance risk premium history with percentile rank
+    searchChatHistory.js    Semantic recall (pgvector → SQLite fallback)
+    queryDuckdb.js          Read-only SQL against the backtester shards
 scripts/
-  register-commands.js  One-off slash command registration
-test/                   node:test suites (78 tests)
-data/                   SQLite store (gitignored, created on first launch)
+  register-commands.js      One-off slash command registration
+  verify.js                 Credential preflight against every configured external service
+  postmortem.js             Per-user audit + feedback rollup over a window
+  backup-db.js              CLI entry for the SQLite VACUUM INTO backup
+test/                       node:test suites (78 tests)
+data/                       SQLite store (gitignored, created on first launch)
 ```
 
 ## Optional integrations
@@ -258,7 +270,7 @@ them to return raw chain data.
 - HTTP `/healthz` for orchestration probes plus the `/health` slash command for in-Discord state.
 - Online SQLite backup via `VACUUM INTO` (`npm run backup` or `/admin backup`).
 - Postmortem report (`npm run postmortem`) aggregates audit + feedback for review.
-- 62 unit tests (`npm test`) running on every CI push.
+- 78 unit tests (`npm test`) running on every CI push.
 - ESLint flat config (`npm run lint`) running on every CI push.
 
 ## License
