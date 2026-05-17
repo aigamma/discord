@@ -80,6 +80,13 @@ export async function executeTool(name, input) {
   }
   try {
     const result = await fn(input || {});
+    // Defense: a tool that forgets to return drops `content` from the
+    // Anthropic tool_result block (JSON.stringify(undefined) is
+    // undefined, and the missing key trips a 400 from the API). Coerce
+    // null/undefined into a structured no-result error.
+    if (result === undefined || result === null) {
+      return { error: `Tool ${name} returned no result.` };
+    }
     if (ttl > 0 && !result?.error) {
       toolCache.set(name, input, result, ttl);
     }
