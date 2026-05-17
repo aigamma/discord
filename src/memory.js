@@ -434,8 +434,12 @@ const selectChannelExport = db.prepare(`
 `);
 
 export function exportChannel(channelId) {
-  const rows = selectChannelExport.all(channelId, EXPORT_ROW_CAP);
-  return rows.map((r) => ({
+  // Fetch one row beyond the cap so callers can tell 'exactly cap' from
+  // 'cap reached, more available' without a separate COUNT query.
+  const probeRows = selectChannelExport.all(channelId, EXPORT_ROW_CAP + 1);
+  const truncated = probeRows.length > EXPORT_ROW_CAP;
+  const rows = truncated ? probeRows.slice(0, EXPORT_ROW_CAP) : probeRows;
+  const messages = rows.map((r) => ({
     id: r.id,
     role: r.role,
     user_id: r.user_id,
@@ -451,6 +455,7 @@ export function exportChannel(channelId) {
     latency_ms: r.latency_ms,
     created_at: new Date(r.created_at).toISOString(),
   }));
+  return { messages, truncated, cap: EXPORT_ROW_CAP };
 }
 
 // ---- User notes ---------------------------------------------------------

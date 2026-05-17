@@ -437,8 +437,8 @@ async function handleForgetNotes(interaction) {
 
 async function handleExport(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const rows = exportChannel(interaction.channelId);
-  if (rows.length === 0) {
+  const { messages, truncated, cap } = exportChannel(interaction.channelId);
+  if (messages.length === 0) {
     await interaction.editReply('No persisted messages in this channel.');
     return;
   }
@@ -447,8 +447,10 @@ async function handleExport(interaction) {
     guild_id: interaction.guildId,
     exported_at: new Date().toISOString(),
     exported_by: interaction.user.id,
-    message_count: rows.length,
-    messages: rows,
+    message_count: messages.length,
+    truncated,
+    cap: truncated ? cap : null,
+    messages,
   };
   const buf = Buffer.from(JSON.stringify(payload, null, 2));
 
@@ -467,10 +469,13 @@ async function handleExport(interaction) {
   const stamp = new Date().toISOString().slice(0, 10);
   const file = new AttachmentBuilder(buf, { name: `channel-${interaction.channelId}-${stamp}.json` });
   const sizeNote = buf.length >= 1024 * 1024
-    ? `${rows.length} messages, ${(buf.length / 1024 / 1024).toFixed(2)} MB`
-    : `${rows.length} messages, ${(buf.length / 1024).toFixed(1)} KB`;
+    ? `${messages.length} messages, ${(buf.length / 1024 / 1024).toFixed(2)} MB`
+    : `${messages.length} messages, ${(buf.length / 1024).toFixed(1)} KB`;
+  const truncationNote = truncated
+    ? ` _(truncated at the ${cap}-row export cap; older messages exist — use \`/search\` to find them)_`
+    : '';
   await interaction.editReply({
-    content: `Exported ${sizeNote}.`,
+    content: `Exported ${sizeNote}.${truncationNote}`,
     files: [file],
   });
 }
