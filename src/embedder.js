@@ -16,7 +16,7 @@ import { config } from './config.js';
 import {
   getPendingEmbeddings,
   pendingEmbeddingsCount,
-  setEmbedding,
+  setEmbeddingBulk,
   getPendingPgvectorRows,
   markSyncedBulk,
 } from './memory.js';
@@ -43,19 +43,20 @@ async function embedTick() {
 
   // Defensive: if Voyage returns fewer vectors than requested (a length
   // mismatch theoretically possible on partial response), don't write
-  // garbage to setEmbedding. Skip the orphans; the SQL query will return
-  // them again next tick. Logged so the operator can investigate.
-  let writes = 0;
+  // garbage. Skip the orphans; the SQL query will return them again
+  // next tick. Logged so the operator can investigate.
+  const writes = [];
   for (let i = 0; i < rows.length; i++) {
     const v = vectors[i];
     if (!v || typeof v.byteLength !== 'number') {
       try { logger.warn('embedder: voyage returned no vector for row', { row_id: rows[i].id, batch_index: i }); } catch { /* */ }
       continue;
     }
-    setEmbedding(rows[i].id, vecToBlob(v), config.voyage.model);
-    writes++;
+    writes.push({ id: rows[i].id, blob: vecToBlob(v), model: config.voyage.model });
   }
-  embedded += writes;
+  // One transaction for the whole batch instead of N separate fsync.
+  setEmbeddingBulk(writes);
+  embedded += writes.length;
   embedRuns++;
 }
 

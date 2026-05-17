@@ -328,6 +328,24 @@ export function setEmbedding(id, blob, model) {
   updateEmbedding.run(blob, model, id);
 }
 
+// Batch version of setEmbedding. Wraps N UPDATEs in one transaction so
+// the embedder's tick pays a single fsync per batch instead of one per
+// row. The caller passes [{id, blob, model}].
+const setEmbeddingBulkBegin = db.prepare('BEGIN');
+const setEmbeddingBulkCommit = db.prepare('COMMIT');
+const setEmbeddingBulkRollback = db.prepare('ROLLBACK');
+export function setEmbeddingBulk(entries) {
+  if (!entries || entries.length === 0) return;
+  setEmbeddingBulkBegin.run();
+  try {
+    for (const e of entries) updateEmbedding.run(e.blob, e.model, e.id);
+    setEmbeddingBulkCommit.run();
+  } catch (err) {
+    try { setEmbeddingBulkRollback.run(); } catch { /* nested fail */ }
+    throw err;
+  }
+}
+
 // Returns every embedded user message paired with its embedding (deserialized).
 // Iterates in chunks so the entire corpus does not have to land in memory at
 // once for very large stores. Used by the semantic-search tool.
