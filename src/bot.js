@@ -283,6 +283,10 @@ async function handleUsage(interaction) {
 async function handleSearch(interaction) {
   const query = interaction.options.getString('query', true).trim();
   let scope = interaction.options.getString('scope') || 'channel';
+  // limit defaults to 5 and is clamped at the slash-command registration
+  // layer to [1, 15]; the agent further clamps inside searchChatHistory
+  // so this is defense-in-depth.
+  const limit = interaction.options.getInteger('limit') ?? 5;
 
   // Privacy: scope=all in a DM would let a user surface hits from other
   // users' DMs with the bot, which is not intended. Force channel-only
@@ -295,7 +299,7 @@ async function handleSearch(interaction) {
 
   const result = await searchHistory({
     query,
-    limit: 5,
+    limit,
     channel_id: scope === 'channel' ? interaction.channelId : null,
     // When scope is 'all', restrict to the caller's guild so DM rows from
     // other users (guild_id=null) and rows from other guilds are excluded.
@@ -324,7 +328,11 @@ async function handleSearch(interaction) {
     .setColor(0x4a9eff)
     .setFooter({ text: `${result.hits.length} hit(s) · ${corpusNote}` });
 
-  for (const h of result.hits.slice(0, 5)) {
+  // Discord caps embeds at 25 fields and ~6000 chars total. With the
+  // caller's limit already clamped to 15 by the slash-command spec, the
+  // result.hits array is bounded; no extra slice needed beyond what
+  // the caller requested.
+  for (const h of result.hits) {
     const when = new Date(h.asked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const headerSuffix = h.discord_url ? ` · [jump](${h.discord_url})` : '';
     embed.addFields({

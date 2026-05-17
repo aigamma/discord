@@ -50,6 +50,13 @@ const commands = [
           { name: 'every channel in this server', value: 'all' }
         )
     )
+    .addIntegerOption((opt) =>
+      opt
+        .setName('limit')
+        .setDescription('How many hits to return (default 5, max 15)')
+        .setMinValue(1)
+        .setMaxValue(15)
+    )
     .toJSON(),
   new SlashCommandBuilder()
     .setName('health')
