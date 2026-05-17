@@ -201,7 +201,7 @@ scripts/
   verify.js                 Credential preflight against every configured external service
   postmortem.js             Per-user audit + feedback rollup over a window
   backup-db.js              CLI entry for the SQLite VACUUM INTO backup
-test/                       node:test suites (78 tests)
+test/                       node:test suites (89 tests)
 data/                       SQLite store (gitignored, created on first launch)
 ```
 
@@ -270,7 +270,7 @@ them to return raw chain data.
 - HTTP `/healthz` for orchestration probes plus the `/health` slash command for in-Discord state.
 - Online SQLite backup via `VACUUM INTO` (`npm run backup` or `/admin backup`).
 - Postmortem report (`npm run postmortem`) aggregates audit + feedback for review.
-- 78 unit tests (`npm test`) running on every CI push.
+- 89 unit tests (`npm test`) running on every CI push.
 - ESLint flat config (`npm run lint`) running on every CI push.
 
 ## License

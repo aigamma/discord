@@ -215,7 +215,7 @@ Optional: `SUPABASE_URL`+`SUPABASE_KEY`, `VOYAGE_API_KEY`,
 
 ## Tests
 
-`test/*.test.js` via `node --test` (no external runner). 78 tests
+`test/*.test.js` via `node --test` (no external runner). 89 tests
 covering pricing math, rate limiter semantics, cosine + blob roundtrip,
 prompt composition, SQL guard, progress reporter, budget, memory
 persistence, tool cache, user notes, backup, and Supabase retry
