@@ -22,7 +22,15 @@ export function inFlightCount() {
 
 export function beginWork() {
   inFlight++;
+  let released = false;
   return () => {
+    // Idempotent: a try/finally with an extra catch path can call this
+    // twice (or a refactor that double-wraps the closure). Without the
+    // guard, double-release would drop inFlight below the actual count
+    // and the drain promise could resolve before in-flight work
+    // genuinely finishes.
+    if (released) return;
+    released = true;
     inFlight--;
     if (inFlight === 0 && shuttingDown) {
       for (const cb of onDrainCallbacks.splice(0)) cb();
