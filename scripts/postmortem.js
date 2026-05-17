@@ -101,4 +101,17 @@ try {
 } catch { /* json_each not available */ }
 tableSection('Tool calls', toolStats);
 
+const byUser = db.prepare(`
+  SELECT user_id, COUNT(*) AS turns, SUM(cost_usd) AS cost_usd, SUM(input_tokens + output_tokens) AS tokens
+  FROM turns
+  WHERE created_at >= ?
+  GROUP BY user_id
+  ORDER BY cost_usd DESC
+  LIMIT 10
+`).all(since).map((r) => {
+  const cost = (r.cost_usd ?? 0).toFixed(4);
+  return `${r.user_id} — ${r.turns} turns, $${cost}, ${(r.tokens ?? 0).toLocaleString()} tokens`;
+});
+tableSection('By user', byUser);
+
 console.log('\nReport complete.');
