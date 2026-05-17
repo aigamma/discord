@@ -66,6 +66,30 @@ const commands = [
         .setMaxValue(500)
     )
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName('admin')
+    .setDescription('Operator-only utilities (owner gated)')
+    .addSubcommand((s) =>
+      s.setName('rebuild-embeddings').setDescription('Clear and re-embed every user message via Voyage')
+    )
+    .addSubcommand((s) =>
+      s.setName('backup').setDescription('Snapshot the SQLite store via VACUUM INTO')
+    )
+    .addSubcommand((s) =>
+      s.setName('reset-rate-limit')
+        .setDescription("Clear a user's in-memory rate-limit bucket")
+        .addStringOption((opt) =>
+          opt.setName('user').setDescription('Discord user id').setRequired(true)
+        )
+    )
+    .addSubcommand((s) =>
+      s.setName('feedback')
+        .setDescription('Show recent thumbs-up / thumbs-down feedback')
+        .addIntegerOption((opt) =>
+          opt.setName('hours').setDescription('Lookback window (default 168 = one week)').setMinValue(1).setMaxValue(8760)
+        )
+    )
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discord.token);

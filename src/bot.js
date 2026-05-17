@@ -31,6 +31,7 @@ import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector
 import { summarize } from './summarize.js';
 import { createProgressReporter } from './progressReporter.js';
 import { checkBudget, isBudgetEnabled } from './budget.js';
+import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, triggerBackup } from './admin.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -294,6 +295,43 @@ async function handleHealth(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+async function handleAdmin(interaction) {
+  if (!isOwner(interaction.user.id)) {
+    await interaction.reply({ content: 'Not authorized.', flags: MessageFlags.Ephemeral });
+    logger.warn('admin command refused', { caller: interaction.user.id });
+    return;
+  }
+  const sub = interaction.options.getSubcommand();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    if (sub === 'rebuild-embeddings') {
+      const r = await rebuildEmbeddings();
+      await interaction.editReply(`Cleared ${r.cleared} embedding(s). ${r.note}`);
+    } else if (sub === 'backup') {
+      const r = await triggerBackup();
+      const lines = (r.stdout || []).join('\n') || '(no output)';
+      await interaction.editReply(`Backup ran in ${r.elapsed_ms}ms.\n\`\`\`\n${lines.slice(0, 1700)}\n\`\`\``);
+    } else if (sub === 'reset-rate-limit') {
+      const target = interaction.options.getString('user', true);
+      const r = resetUserRateLimit(target);
+      await interaction.editReply(r.cleared ? `Cleared rate limit for ${target}.` : `No active bucket for ${target}.`);
+    } else if (sub === 'feedback') {
+      const hours = interaction.options.getInteger('hours') || 168;
+      const r = feedbackReport(hours);
+      const lines = r.rows.slice(0, 15).map((f) => {
+        const when = new Date(f.created_at).toISOString().slice(0, 16).replace('T', ' ');
+        const tag = f.sentiment === 'up' ? '👍' : '👎';
+        const snippet = (f.reply_content || '').slice(0, 80).replace(/\n/g, ' ');
+        return `${tag} ${when} <@${f.user_id}> · ${snippet}`;
+      }).join('\n');
+      await interaction.editReply(`**Feedback in last ${hours}h** (${r.count} entries)\n${lines || '_(none)_'}`);
+    }
+  } catch (err) {
+    logger.error('admin subcommand failed', { sub, err });
+    await interaction.editReply(`Admin error: \`${err?.message || err}\``).catch(() => {});
+  }
+}
+
 async function handleSlashCommand(interaction) {
   switch (interaction.commandName) {
     case 'ask':       return handleAsk(interaction);
@@ -302,6 +340,7 @@ async function handleSlashCommand(interaction) {
     case 'search':    return handleSearch(interaction);
     case 'health':    return handleHealth(interaction);
     case 'summarize': return handleSummarize(interaction);
+    case 'admin':     return handleAdmin(interaction);
   }
 }
 

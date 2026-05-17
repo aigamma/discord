@@ -38,3 +38,11 @@ setInterval(() => {
     if (bucket.length === 0) buckets.delete(k);
   }
 }, WINDOW_MS).unref();
+
+export function reset(userId) {
+  if (buckets.has(userId)) {
+    buckets.delete(userId);
+    return true;
+  }
+  return false;
+}

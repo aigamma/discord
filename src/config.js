@@ -28,6 +28,7 @@ function readEnv() {
       token: process.env.DISCORD_BOT_TOKEN.trim(),
       clientId: process.env.DISCORD_CLIENT_ID.trim(),
       guildId: (process.env.DISCORD_GUILD_ID || '').trim() || null,
+      ownerId: (process.env.OWNER_DISCORD_USER_ID || '').trim() || null,
     },
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY.trim(),

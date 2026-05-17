@@ -50,7 +50,7 @@ const selectRecent = db.prepare(`
   SELECT id, user_id, username, role, content, created_at
   FROM messages
   WHERE channel_id = ? AND created_at >= ?
-  ORDER BY created_at DESC
+  ORDER BY created_at DESC, id DESC
   LIMIT ?
 `);
 
@@ -153,7 +153,7 @@ const selectChannelHistoryForSummary = db.prepare(`
   SELECT role, username, content, created_at
   FROM messages
   WHERE channel_id = ?
-  ORDER BY created_at DESC
+  ORDER BY created_at DESC, id DESC
   LIMIT ?
 `);
 
@@ -336,6 +336,40 @@ const selectUserSpendSince = db.prepare(`
 
 export function userSpendSince(userId, sinceMs) {
   return selectUserSpendSince.get(userId, sinceMs).spend;
+}
+
+const clearEmbeddings = db.prepare(`
+  UPDATE messages SET embedding = NULL, embedding_model = NULL WHERE role = 'user'
+`);
+const clearPgvectorSync = db.prepare(`DELETE FROM pgvector_sync`);
+
+export function clearAllEmbeddings() {
+  const t = db.exec.bind(db);
+  t('BEGIN');
+  try {
+    const res = clearEmbeddings.run();
+    clearPgvectorSync.run();
+    t('COMMIT');
+    return res.changes;
+  } catch (e) {
+    t('ROLLBACK');
+    throw e;
+  }
+}
+
+const selectRecentFeedback = db.prepare(`
+  SELECT f.id, f.assistant_message_id, f.user_id, f.channel_id, f.sentiment,
+         f.created_at, m.content AS reply_content
+  FROM feedback f
+  LEFT JOIN messages m ON m.id = f.assistant_message_id
+  WHERE f.created_at >= ?
+  ORDER BY f.created_at DESC
+  LIMIT ?
+`);
+
+export function recentFeedback({ hours = 168, limit = 20 } = {}) {
+  const since = Date.now() - hours * 3600 * 1000;
+  return selectRecentFeedback.all(since, limit);
 }
 
 // Aggregate usage stats over a rolling window (default 24h) for the /usage
