@@ -40,10 +40,10 @@ test('cosine: mismatched dimensions return -1 sentinel', () => {
 test('cosine: NaN in one vector poisons the result (caller filters)', () => {
   const a = new Float32Array([1, NaN, 3]);
   const b = new Float32Array([1, 2, 3]);
-  // NaN propagation through dot product → NaN result. Caller is
-  // expected to filter NaN hits before ranking (search currently
-  // does this via the similarity_floor check, which treats NaN < N
-  // as false → skipped).
+  // NaN propagation through dot product → NaN result. The caller MUST
+  // filter NaN explicitly with Number.isFinite — a `sim < minSim` skip
+  // alone does NOT catch NaN because `NaN < x` is always false, so
+  // the NaN entry would slide past the floor check.
   assert.ok(Number.isNaN(cosineSimilarity(a, b)));
 });
 

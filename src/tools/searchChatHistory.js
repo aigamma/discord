@@ -93,7 +93,10 @@ function searchSqliteFallback(queryVec, k, minSim, channelId, guildId) {
     scanned++;
     const vec = blobToVec(row.embedding);
     const sim = cosineSimilarity(queryVec, vec);
-    if (sim < minSim) continue;
+    // `NaN < x` is always false; if sim is NaN (a corrupted embedding
+    // blob would produce one), the `sim < minSim` skip wouldn't fire
+    // and the NaN row would land in the heap unsorted. Guard explicitly.
+    if (!Number.isFinite(sim) || sim < minSim) continue;
     heap.push({ sim, row });
   }
   heap.sort((a, b) => b.sim - a.sim);
