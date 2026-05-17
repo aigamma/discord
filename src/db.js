@@ -163,6 +163,21 @@ const migrations = [
         ON turns(assistant_message_id);
     `,
   },
+  {
+    name: '008_messages_discord_id_index',
+    sql: `
+      -- findAssistantByDiscordId queries on role + discord_message_id
+      -- per reaction event. Without this index the lookup is a full
+      -- table scan of messages — fine on a small store, slow on a
+      -- year-old one with hundreds of thousands of rows. Partial
+      -- index limits storage cost to assistant rows only (the only
+      -- ones whose discord_message_id we ever look up via this
+      -- query).
+      CREATE INDEX IF NOT EXISTS idx_messages_discord_id
+        ON messages(discord_message_id)
+        WHERE role = 'assistant' AND discord_message_id IS NOT NULL;
+    `,
+  },
 ];
 
 for (const m of migrations) {
