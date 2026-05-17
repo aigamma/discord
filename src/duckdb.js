@@ -33,12 +33,22 @@ let initError = null;
 
 const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|create|alter|attach|detach|pragma|copy|export|import|truncate|grant|revoke|set)\b/i;
 
+// File-system and external-access functions exposed by DuckDB inside a
+// valid SELECT. The engine-level lockdown (enable_external_access = false +
+// lock_configuration = true) is the load-bearing defense; this regex is a
+// second layer so a future DuckDB lockdown-semantics change doesn't
+// silently un-block these. Keep this list in sync with new file-reading
+// table functions if they ship.
+const FORBIDDEN_FUNCTIONS =
+  /\b(read_csv(?:_auto)?|read_parquet|parquet_scan|parquet_metadata|parquet_schema|parquet_file_metadata|read_json(?:_auto|_objects(?:_auto)?)?|read_ndjson(?:_auto|_objects)?|read_text|read_blob|read_xml|glob|sniff_csv|copy_database|load_extension|install_extension|force_install_extension|httpfs_install|hf_install_metadata)\s*\(/i;
+
 function isReadOnlySelect(sql) {
   if (typeof sql !== 'string') return false;
   const trimmed = sql.trim().replace(/;\s*$/, '');
   if (!trimmed) return false;
   if (trimmed.includes(';')) return false;
   if (FORBIDDEN_KEYWORDS.test(trimmed)) return false;
+  if (FORBIDDEN_FUNCTIONS.test(trimmed)) return false;
   if (!/^(\s*with\b|\s*select\b)/i.test(trimmed)) return false;
   return true;
 }
@@ -87,6 +97,20 @@ export async function initDuckDB() {
       );
       attached.push(shard);
     }
+
+    // Belt-and-suspenders against function-level filesystem access. The
+    // SELECT-only guard refuses DDL keywords but a query like
+    //   SELECT * FROM read_csv('/etc/passwd')
+    // is still a valid SELECT; without this, a prompt-injected model
+    // could exfiltrate any file the process user can read. Disabling
+    // external access here blocks read_csv / read_parquet / read_json /
+    // glob / read_text / etc. on the active connection without affecting
+    // the already-attached shards. lock_configuration prevents any
+    // subsequent SET (which the guard would already refuse, but layer
+    // the defense at the engine too).
+    await connection.run("SET enable_external_access = false");
+    await connection.run("SET lock_configuration = true");
+
     logger.info('duckdb shards attached', { count: attached.length, names: attached.map((s) => s.name) });
     return true;
   } catch (err) {

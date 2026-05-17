@@ -15,6 +15,8 @@ process.env.ANTHROPIC_API_KEY ||= 'stub';
 // in src/duckdb.js. If the source predicate diverges, this test fails
 // loudly — a feature, not a bug.
 const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|create|alter|attach|detach|pragma|copy|export|import|truncate|grant|revoke|set)\b/i;
+const FORBIDDEN_FUNCTIONS =
+  /\b(read_csv(?:_auto)?|read_parquet|parquet_scan|parquet_metadata|parquet_schema|parquet_file_metadata|read_json(?:_auto|_objects(?:_auto)?)?|read_ndjson(?:_auto|_objects)?|read_text|read_blob|read_xml|glob|sniff_csv|copy_database|load_extension|install_extension|force_install_extension|httpfs_install|hf_install_metadata)\s*\(/i;
 
 function isReadOnlySelect(sql) {
   if (typeof sql !== 'string') return false;
@@ -22,6 +24,7 @@ function isReadOnlySelect(sql) {
   if (!trimmed) return false;
   if (trimmed.includes(';')) return false;
   if (FORBIDDEN_KEYWORDS.test(trimmed)) return false;
+  if (FORBIDDEN_FUNCTIONS.test(trimmed)) return false;
   if (!/^(\s*with\b|\s*select\b)/i.test(trimmed)) return false;
   return true;
 }
@@ -76,4 +79,33 @@ test('duckdb guard: SET rejected (could change session params)', () => {
 test('duckdb guard: case-insensitive', () => {
   assert.equal(isReadOnlySelect('select 1'), true);
   assert.equal(isReadOnlySelect('Drop Table x'), false);
+});
+
+test('duckdb guard: file-reading table functions rejected', () => {
+  // These are syntactically valid SELECTs and would slip past the keyword
+  // guard. The function-name guard plus the engine-level
+  // enable_external_access=false catch them.
+  for (const stmt of [
+    "SELECT * FROM read_csv('/etc/passwd')",
+    "SELECT * FROM read_csv_auto('secret.csv')",
+    "SELECT * FROM read_parquet('s3://x/y.parquet')",
+    "SELECT * FROM read_json('any.json')",
+    "SELECT * FROM read_text('any.txt')",
+    "SELECT * FROM read_blob('any.bin')",
+    "SELECT * FROM glob('/**/*.duckdb')",
+    "WITH x AS (SELECT * FROM read_parquet('any.parquet')) SELECT * FROM x",
+    "SELECT * FROM parquet_scan('any.parquet')",
+    "SELECT * FROM parquet_metadata('any.parquet')",
+    "SELECT load_extension('httpfs')",
+    "SELECT install_extension('httpfs')",
+  ]) {
+    assert.equal(isReadOnlySelect(stmt), false, `expected ${stmt} to be rejected`);
+  }
+});
+
+test('duckdb guard: substring matches inside identifiers do NOT reject', () => {
+  // The function-name guard requires `\s*\(` after the function name, so
+  // a column named `read_csv_uploads` or a table `glob_index` is fine.
+  assert.equal(isReadOnlySelect('SELECT read_csv_uploads FROM x'), true);
+  assert.equal(isReadOnlySelect('SELECT * FROM glob_index'), true);
 });

@@ -127,6 +127,16 @@ not registered and the bot starts cleanly.
 - WITH or SELECT prefix only
 - keyword blocklist: INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, ATTACH,
   DETACH, PRAGMA, COPY, EXPORT, IMPORT, TRUNCATE, GRANT, REVOKE, SET
+- function-name blocklist: read_csv/read_csv_auto, read_parquet,
+  parquet_scan, parquet_metadata, parquet_schema, read_json/read_ndjson,
+  read_text, read_blob, read_xml, glob, sniff_csv, copy_database,
+  load_extension, install_extension — these would otherwise let a
+  prompt-injected SELECT exfiltrate arbitrary files (`SELECT * FROM
+  read_csv('/etc/passwd')`).
+- engine-level lockdown: `SET enable_external_access = false` plus
+  `SET lock_configuration = true` are applied to the DuckDB connection
+  AFTER the shards are attached, so file-reading table functions are
+  refused at the engine even if the regex misses one.
 - 30-second timeout via `connection.interrupt()` if available
 - 1000-row result cap
 
