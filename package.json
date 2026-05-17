@@ -6,16 +6,16 @@
   "license": "MIT",
   "description": "A Discord bot powered by Claude Sonnet 4.6 that answers strategic trading questions, with optional Anthropic tool-use access to a live market-data backend (default: aigamma.com Supabase).",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
-    "start": "node --env-file=.env.local src/index.js",
-    "register": "node --env-file=.env.local scripts/register-commands.js",
+    "start": "node --env-file-if-exists=.env.local src/index.js",
+    "register": "node --env-file-if-exists=.env.local scripts/register-commands.js",
     "test": "node --test --test-reporter=spec",
-    "backup": "node --env-file=.env.local scripts/backup-db.js",
+    "backup": "node --env-file-if-exists=.env.local scripts/backup-db.js",
     "lint": "eslint .",
-    "postmortem": "node --env-file=.env.local scripts/postmortem.js",
-    "verify": "node --env-file=.env.local scripts/verify.js"
+    "postmortem": "node --env-file-if-exists=.env.local scripts/postmortem.js",
+    "verify": "node --env-file-if-exists=.env.local scripts/verify.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",

@@ -205,10 +205,12 @@ Optional: `SUPABASE_URL`+`SUPABASE_KEY`, `VOYAGE_API_KEY`,
 
 ## Tests
 
-`test/*.test.js` via `node --test` (no external runner). 33 tests
+`test/*.test.js` via `node --test` (no external runner). 78 tests
 covering pricing math, rate limiter semantics, cosine + blob roundtrip,
-prompt composition, SQL guard. Pure-function only; no I/O, runs in
-<100ms. `npm test`.
+prompt composition, SQL guard, progress reporter, budget, memory
+persistence, tool cache, user notes, backup, and Supabase retry
+predicates. No live API calls; SQLite-touching tests use per-process tmp
+stores. Runs in ~3s. `npm test`.
 
 `.github/workflows/test.yml` runs the suite on every push to main and
 every PR, plus a `node --check` pass over every source module.
@@ -219,8 +221,10 @@ every PR, plus a `node --check` pass over every source module.
 against node:22-bookworm-slim, runtime stage copies just node_modules
 plus source plus migrations plus license into a clean image and runs as
 a non-root user. `compose.yml` mounts `./data` for the SQLite store and
-sets `LOG_FORMAT=json` explicitly. CMD is `node --env-file=.env.local
-src/index.js`.
+sets `LOG_FORMAT=json` explicitly. CMD is `node
+--env-file-if-exists=.env.local src/index.js` so the container starts
+cleanly when secrets are injected via the orchestrator rather than a
+mounted file.
 
 ## Style discipline
 

@@ -8,7 +8,7 @@
 //
 // Run on demand:
 //
-//   node --env-file=.env.local scripts/postmortem.js [--hours 168]
+//   node --env-file-if-exists=.env.local scripts/postmortem.js [--hours 168]
 //
 // Output is plain text suitable for piping to a file or to the operator
 // for an end-of-week review.

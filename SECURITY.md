@@ -19,7 +19,9 @@ receives security patches. There are no long-lived release branches yet.
 
 - The bot reads secrets only from environment variables, never from files
   it discovers at runtime. `.env.local` is read once at startup via
-  `node --env-file=.env.local` and never reloaded.
+  `node --env-file-if-exists=.env.local` (so the container starts when
+  secrets come from the orchestrator instead of a mounted file), and
+  never reloaded.
 - The required secrets are listed in `.env.example` with comments naming
   what each one signs into.
 - The `.gitignore` excludes `.env`, `.env.local`, `.env.*.local`, and the
