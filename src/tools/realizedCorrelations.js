@@ -65,12 +65,16 @@ export async function execute({ symbols = null, lookback_days = 60 } = {}) {
   const days = Math.min(Math.max(parseInt(lookback_days, 10) || 60, 7), 1260);
   const fromDate = new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 10);
 
+  // PostgREST `limit` caps total rows, not per-symbol. Allocate one row
+  // per calendar day per symbol with a small floor; trading days are <=
+  // calendar days so this is enough to fit every symbol's slice without
+  // silently truncating the back half of the basket on long lookbacks.
   const rows = await selectRows('daily_eod', {
     symbol: `in.(${basket.join(',')})`,
     trading_date: `gte.${fromDate}`,
     select: 'symbol,trading_date,close',
     order: 'symbol.asc,trading_date.asc',
-    limit: String(basket.length * 400),
+    limit: String(basket.length * Math.max(days, 120)),
   });
 
   if (!rows.length) {
