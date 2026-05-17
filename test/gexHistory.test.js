@@ -96,3 +96,61 @@ test('gexHistory: empty result returns structured error', async () => {
     restore();
   }
 });
+
+test('gexHistory: null source values in series surface as null, not 0', async () => {
+  // A PostgREST row with a null numeric column previously surfaced as
+  // 0 via Number(null). For a price/strike field that reads as
+  // 'SPX at 0' or 'put wall at 0' — a material misread for an
+  // audience that may act on tool output. The series row preserves
+  // every input row (including ones the percentile filter excludes),
+  // so test through the series view.
+  // Build the first row directly so explicit nulls aren't replaced by
+  // gexRow's `?? default` fallback. PostgREST surfaces missing numeric
+  // columns as null, and the tool must preserve that distinction.
+  const rows = [
+    {
+      trading_date: daysAgo(2),
+      spx_close: 5000,
+      net_gex: 100,
+      call_gex: 1e9,
+      put_gex: -5e8,
+      atm_call_gex: 1e8,
+      atm_put_gex: -5e7,
+      vol_flip_strike: null,
+      call_wall_strike: null,
+      put_wall_strike: 4800,
+    },
+    {
+      // Tail row: deliberately sparse — only trading_date populated.
+      trading_date: daysAgo(1),
+      spx_close: null,
+      net_gex: null,
+      call_gex: null,
+      put_gex: null,
+      atm_call_gex: null,
+      atm_put_gex: null,
+      vol_flip_strike: null,
+      call_wall_strike: null,
+      put_wall_strike: null,
+    },
+  ];
+  const restore = stubFetch(async () => rows);
+  try {
+    const r = await execute({ lookback_days: 30 });
+    // Series row 0: explicit-null vol_flip_strike and call_wall_strike
+    // surface as null, not 0.
+    assert.equal(r.series[0].vol_flip, null);
+    assert.equal(r.series[0].call_wall, null);
+    assert.equal(r.series[0].net_gex, 100, 'numeric values still pass through');
+    assert.equal(r.series[0].spx_close, 5000);
+    // Series row 1 (the all-null tail): every numeric must be null,
+    // never 0. Previously these would each have been Number(null) = 0.
+    assert.equal(r.series[1].spx_close, null);
+    assert.equal(r.series[1].net_gex, null);
+    assert.equal(r.series[1].vol_flip, null);
+    assert.equal(r.series[1].call_wall, null);
+    assert.equal(r.series[1].put_wall, null);
+  } finally {
+    restore();
+  }
+});

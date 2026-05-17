@@ -5,6 +5,16 @@
 
 import { selectRows } from '../supabase.js';
 
+// Number(null) === 0 — a PostgREST row with a null numeric column
+// would otherwise surface to the model as 0, which for a price column
+// is materially misleading ('SPX closed at 0' / 'put wall at 0').
+// Prefer null when the source is missing.
+function numOrNull(v) {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export const spec = {
   name: 'get_gex_history',
   description:
@@ -66,13 +76,13 @@ export async function execute({ lookback_days = 60 } = {}) {
     sample_size: rows.length,
     as_of: latest.trading_date,
     latest: {
-      spx_close: Number(latest.spx_close),
-      net_gex: latestNetGex,
-      call_gex: Number(latest.call_gex),
-      put_gex: Number(latest.put_gex),
-      vol_flip_strike: Number(latest.vol_flip_strike),
-      call_wall_strike: Number(latest.call_wall_strike),
-      put_wall_strike: Number(latest.put_wall_strike),
+      spx_close: numOrNull(latest.spx_close),
+      net_gex: latestGexFinite ? latestNetGex : null,
+      call_gex: numOrNull(latest.call_gex),
+      put_gex: numOrNull(latest.put_gex),
+      vol_flip_strike: numOrNull(latest.vol_flip_strike),
+      call_wall_strike: numOrNull(latest.call_wall_strike),
+      put_wall_strike: numOrNull(latest.put_wall_strike),
     },
     net_gex_percentile_rank: netGexPercentile,
     net_gex_summary: sorted.length
@@ -84,11 +94,11 @@ export async function execute({ lookback_days = 60 } = {}) {
       : null,
     series: rows.map((r) => ({
       date: r.trading_date,
-      spx_close: Number(r.spx_close),
-      net_gex: Number(r.net_gex),
-      vol_flip: Number(r.vol_flip_strike),
-      call_wall: Number(r.call_wall_strike),
-      put_wall: Number(r.put_wall_strike),
+      spx_close: numOrNull(r.spx_close),
+      net_gex: numOrNull(r.net_gex),
+      vol_flip: numOrNull(r.vol_flip_strike),
+      call_wall: numOrNull(r.call_wall_strike),
+      put_wall: numOrNull(r.put_wall_strike),
     })),
   };
 }
