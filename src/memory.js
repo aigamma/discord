@@ -652,6 +652,25 @@ const selectToolUseCounts = db.prepare(`
   ORDER BY calls DESC
 `);
 
+// R-7 linear-interpolation percentile (Excel.PERCENTILE.INC). Exported
+// so /usage and the postmortem script compute identical p50/p95 over
+// the same window — without the shared helper, /usage used R-7 while
+// postmortem used nearest-neighbor and the two reports disagreed on
+// the same data.
+//
+// Expects a NON-empty, sorted-ascending array; returns null when
+// empty. Returns Math.round(value) so callers don't have to.
+export function percentile(sortedAsc, p) {
+  if (!sortedAsc || sortedAsc.length === 0) return null;
+  if (sortedAsc.length === 1) return Math.round(sortedAsc[0]);
+  const idx = (sortedAsc.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return Math.round(sortedAsc[lo]);
+  const frac = idx - lo;
+  return Math.round(sortedAsc[lo] + frac * (sortedAsc[hi] - sortedAsc[lo]));
+}
+
 export function usageSummary(hours = 24) {
   const since = Date.now() - hours * 3600 * 1000;
   // SQLite versions without json_each will throw; treat as zero tool calls.
@@ -662,25 +681,14 @@ export function usageSummary(hours = 24) {
     byTool = [];
   }
   // p50/p95 derived in JS over the sorted latency rows so SQLite version
-  // skew on PERCENTILE_CONT doesn't matter. Linear-interpolation
-  // percentile (R-7 / Excel.PERCENTILE.INC convention): index =
-  // (n-1)*p, interpolate between floor and ceil values.
+  // skew on PERCENTILE_CONT doesn't matter. selectTurnLatencies already
+  // orders ASC; pass straight to the shared percentile() helper.
   const latencies = selectTurnLatencies.all(since).map((r) => r.latency_ms);
-  const pct = (p) => {
-    if (latencies.length === 0) return null;
-    if (latencies.length === 1) return Math.round(latencies[0]);
-    const idx = (latencies.length - 1) * p;
-    const lo = Math.floor(idx);
-    const hi = Math.ceil(idx);
-    if (lo === hi) return Math.round(latencies[lo]);
-    const frac = idx - lo;
-    return Math.round(latencies[lo] + frac * (latencies[hi] - latencies[lo]));
-  };
   return {
     window_hours: hours,
     total: selectUsageSummary.get(since),
-    p50_latency_ms: pct(0.5),
-    p95_latency_ms: pct(0.95),
+    p50_latency_ms: percentile(latencies, 0.5),
+    p95_latency_ms: percentile(latencies, 0.95),
     by_user: selectUsageByUser.all(since),
     by_model: selectUsageByModel.all(since),
     by_tool: byTool,

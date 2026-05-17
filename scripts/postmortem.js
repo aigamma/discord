@@ -25,6 +25,7 @@ for (let i = 0; i < args.length; i++) {
 const since = Date.now() - hours * 3600 * 1000;
 
 const { db } = await import('../src/db.js');
+const { percentile } = await import('../src/memory.js');
 
 function tableSection(title, rows) {
   console.log(`\n=== ${title} ===`);
@@ -47,8 +48,12 @@ const total = db.prepare(`
 const latencyRows = db.prepare(`
   SELECT latency_ms FROM turns WHERE created_at >= ? AND latency_ms IS NOT NULL ORDER BY latency_ms ASC
 `).all(since).map((r) => r.latency_ms);
-const p50 = latencyRows[Math.floor(latencyRows.length * 0.5)] ?? null;
-const p95 = latencyRows[Math.floor(latencyRows.length * 0.95)] ?? null;
+// Same R-7 linear-interpolation percentile /usage uses, so the two
+// reports never disagree on the same window. Previously postmortem
+// used nearest-neighbor while /usage used R-7, so p95 in the weekly
+// report could differ from what the operator saw on /usage live.
+const p50 = percentile(latencyRows, 0.5);
+const p95 = percentile(latencyRows, 0.95);
 
 console.log(`\nPostmortem report — last ${hours}h`);
 console.log(`-----------------------------------`);

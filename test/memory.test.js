@@ -17,7 +17,7 @@ test.after(() => {
 const {
   persistMessage, persistTurn,
   loadShortTermContext, totalMessageCount,
-  usageSummary,
+  usageSummary, percentile,
   recordFeedback, feedbackCounts,
   attachDiscordMessageId, findAssistantMessage,
   loadChannelHistoryForSummary,
@@ -200,4 +200,38 @@ test('memory: loadChannelHistoryForSummary returns oldest-first within the cap',
   assert.equal(hist.length, 4);
   // First should be older than last
   assert.ok(hist[0].created_at <= hist[hist.length - 1].created_at);
+});
+
+test('percentile: empty array returns null', () => {
+  assert.equal(percentile([], 0.5), null);
+  assert.equal(percentile(null, 0.5), null);
+});
+
+test('percentile: single-element array returns that element', () => {
+  assert.equal(percentile([42], 0.5), 42);
+  assert.equal(percentile([42], 0.95), 42);
+});
+
+test('percentile: R-7 linear interpolation, not nearest-neighbor', () => {
+  // [100, 200, 300, 400]:
+  //   p50 idx = (4-1)*0.5 = 1.5 → between 200 and 300 → 250
+  //   p95 idx = (4-1)*0.95 = 2.85 → between 300 and 400 at 0.85 frac → 385
+  // Nearest-neighbor (which postmortem.js used before) would have
+  // given Math.floor(4*0.5)=2 → 300 for p50, Math.floor(4*0.95)=3 →
+  // 400 for p95. The whole point of this helper is that the two
+  // surfaces agree on the same window — pin it.
+  assert.equal(percentile([100, 200, 300, 400], 0.5), 250);
+  assert.equal(percentile([100, 200, 300, 400], 0.95), 385);
+});
+
+test('percentile: rounds to integer', () => {
+  // [100, 101]: p50 idx = 0.5 → 100.5 → rounds to 101 (half-to-even
+  // would give 100, but JS Math.round goes half-up to 101).
+  assert.equal(percentile([100, 101], 0.5), 101);
+});
+
+test('percentile: p=0 and p=1 hit the endpoints', () => {
+  const arr = [10, 20, 30, 40, 50];
+  assert.equal(percentile(arr, 0), 10);
+  assert.equal(percentile(arr, 1), 50);
 });
