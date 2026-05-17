@@ -6,6 +6,21 @@ first within each section. Versioning is incremental; pre-1.0 only.
 ## Unreleased
 
 ### Added
+- Per-tool latency stamped on every `tool_uses` entry; `/usage`'s
+  by-tool field now reports `avg Xms` and the postmortem script
+  ranks tools by their own runtime instead of the round's combined
+  network + every-tool latency.
+- `withAnthropicRetry` extracted from `agent.js` into its own module
+  and now wraps the full stream consumption (creation + finalMessage)
+  rather than just the synchronous stream creation. `/summarize`
+  flows through it too, so transient Anthropic errors are retried on
+  both paths.
+- `chunk()` extracted to `src/textChunks.js` with ten regression
+  tests for the break-priority and edge-case behavior.
+- Twenty-plus new tests pinning the recent null-tail fixes, the
+  per-tool latency aggregation, every market-data tool's happy path,
+  the SELECT guard against file-reading DuckDB functions, and the
+  prompt cache-break marker.
 - `/summarize` now streams progressive Discord edits via the
   progressReporter, matching the `/ask` UX.
 - `/export` produces a JSON dump of the channel's persisted Q&A as a
@@ -58,6 +73,44 @@ first within each section. Versioning is incremental; pre-1.0 only.
   applied after shards attach.
 
 ### Fixed
+- `beginWork()`'s release closure is now idempotent so an accidental
+  double-release can't drop the in-flight counter below the real
+  count and let graceful shutdown resolve while turns are still
+  running.
+- Embedder's `embedTick` defends against Voyage returning fewer
+  vectors than requested — skip orphans with a warn log instead of
+  throwing on `vecToBlob(undefined)` and losing every valid write in
+  the batch.
+- Embedder's initial 1-second kick is now cancellable on shutdown
+  so a SIGTERM in the first second of process life can't race the
+  SQLite close.
+- `/admin feedback` truncation note now fires when more than 15
+  rows exist (the 15-row display cap was silent before).
+- `/notes` paginates so 12 long notes don't exceed Discord's
+  2000-char message ceiling.
+- `/export` capped at 10000 rows with caller-visible truncation
+  notice; previously a high-volume channel would load the entire
+  audit log into memory before Discord's attachment cap rejected
+  it anyway.
+- `/search` 'scanned undefined messages' on the pgvector path is now
+  path-aware ('via pgvector_hnsw' vs 'scanned N message(s)').
+- `MessageCreate` handler wraps `handleMention` and guards against
+  `null` `message.author`; a malformed @mention no longer crashes
+  the process or escapes through the error boundary as a noisy
+  unhandled-rejection log.
+- `searchChatHistory` SQLite fallback explicitly filters NaN
+  similarity; a corrupted embedding blob would otherwise slide past
+  the `sim < minSim` check (NaN comparisons are always false).
+- `stockHistory.latest_close` no longer reports 0 when the tail row
+  has a null close (Number(null)===0 foot-gun).
+- `realizedCorrelations` drops null/non-positive closes at intake
+  and hardens Pearson against NaN / zero variance — previously a
+  single bad row poisoned the aggregate.
+- `realizedCorrelations` `limit` parameter scales with basket size
+  AND lookback; was hardcoded to `basket.length * 400` and silently
+  truncated the back half of the basket on long lookbacks.
+- `termStructure.max_expirations` clamped to [1, 50] so a model
+  passing 99999 can't slam every expiration into one response.
 - `ivPercentile` and `gexHistory` no longer report nonsensical
   percentile rank when the most recent ingest left the tail row's
   numeric column null. `Number(null) === 0` silently slid past the
