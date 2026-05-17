@@ -14,6 +14,16 @@ import { db } from './db.js';
 import { inFlightCount, isShuttingDown } from './lifecycle.js';
 
 let server = null;
+// Discord readiness flag, owned by bot.js via setDiscordConnected. False
+// before login completes, true while at least one shard is ready, back to
+// false after Invalidated or while a shard is disconnected. Orchestrators
+// hitting /healthz get a real signal — without this, a bot stuck on
+// 'reconnecting' looked healthy and the load balancer never rotated it.
+let discordConnected = false;
+
+export function setDiscordConnected(connected) {
+  discordConnected = Boolean(connected);
+}
 
 function probeSqlite() {
   try {
@@ -26,10 +36,16 @@ function probeSqlite() {
 
 function payload() {
   const mem = process.memoryUsage();
+  const sqliteOk = probeSqlite();
+  let status = 'ok';
+  if (!sqliteOk) status = 'degraded';
+  else if (!discordConnected) status = 'starting';
   return {
-    status: probeSqlite() ? 'ok' : 'degraded',
+    status,
     pid: process.pid,
     uptime_s: Math.round(process.uptime()),
+    discord_ready: discordConnected,
+    sqlite_ok: sqliteOk,
     in_flight: inFlightCount(),
     shutting_down: isShuttingDown(),
     rss_mb: +(mem.rss / 1024 / 1024).toFixed(1),
@@ -51,6 +67,10 @@ export function startHealthServer() {
       return;
     }
     const body = payload();
+    // 200 only when the process is fully ready to serve: SQLite reachable,
+    // Discord shard connected, and not in shutdown drain. Anything else is
+    // 503 so a Kubernetes liveness or fly.io health probe rotates traffic
+    // away instead of pretending the bot is healthy.
     const code = body.status === 'ok' && !body.shutting_down ? 200 : 503;
     res.writeHead(code, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(body));

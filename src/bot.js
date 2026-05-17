@@ -37,6 +37,7 @@ import { summarize } from './summarize.js';
 import { createProgressReporter } from './progressReporter.js';
 import { checkBudget, isBudgetEnabled } from './budget.js';
 import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, triggerBackup } from './admin.js';
+import { setDiscordConnected } from './healthServer.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -695,7 +696,27 @@ export function buildClient() {
     logger.error('discord shard error', { err, shard_id: shardId });
   });
 
+  // Surface connection state to the HTTP /healthz probe so orchestrator
+  // liveness checks rotate traffic away from a process whose Discord
+  // shard is currently down. discord.js auto-reconnects, but the window
+  // between disconnect and the next ShardReady should be reflected as
+  // unhealthy rather than masked as 200.
+  client.on(Events.ShardReady, () => setDiscordConnected(true));
+  client.on(Events.ShardDisconnect, (event, shardId) => {
+    setDiscordConnected(false);
+    logger.warn('discord shard disconnected', { shard_id: shardId, code: event?.code, reason: event?.reason });
+  });
+  client.on(Events.ShardReconnecting, (shardId) => {
+    setDiscordConnected(false);
+    logger.warn('discord shard reconnecting', { shard_id: shardId });
+  });
+  client.on(Events.Invalidated, () => {
+    setDiscordConnected(false);
+    logger.error('discord session invalidated — process should be restarted');
+  });
+
   client.once(Events.ClientReady, (c) => {
+    setDiscordConnected(true);
     logger.info('discord ready', {
       bot_tag: c.user.tag,
       bot_id: c.user.id,
