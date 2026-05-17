@@ -71,11 +71,18 @@ export async function summarize({ channelId, guildId = null, userId = null, look
   });
 
   const response = await stream.finalMessage();
-  const text = response.content
+  let text = response.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('\n')
     .trim();
+
+  // Surface max_tokens truncation so the operator can see the summary
+  // cut off mid-sentence rather than wondering why it stopped abruptly.
+  // Matches the pattern agent.js uses for the same stop reason.
+  if (response.stop_reason === 'max_tokens' && text) {
+    text += '\n\n_(summary truncated at the max-tokens limit)_';
+  }
 
   const latency = Date.now() - t0;
   const cost = priceUsage(config.anthropic.model, response.usage);
