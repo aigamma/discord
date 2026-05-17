@@ -50,6 +50,9 @@ export function resetUserRateLimit(userId) {
 }
 
 export function feedbackReport(hours = 168) {
-  const rows = recentFeedback({ hours, limit: 25 });
+  // Fetch generously so the 'N more not shown' tail count in /admin
+  // feedback reflects actual volume rather than capping at SQL-limit
+  // minus embed-budget.
+  const rows = recentFeedback({ hours, limit: 200 });
   return { window_hours: hours, count: rows.length, rows };
 }
