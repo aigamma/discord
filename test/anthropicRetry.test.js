@@ -27,7 +27,7 @@ test('withAnthropicRetry: success on first attempt returns immediately', async (
   assert.equal(calls, 1);
 });
 
-test('withAnthropicRetry: 529 (overloaded) is retried up to 3 times', async (t) => {
+test('withAnthropicRetry: 529 (overloaded) is retried up to 3 times', async () => {
   // Override setTimeout to skip the actual sleep
   const realSetTimeout = globalThis.setTimeout;
   globalThis.setTimeout = (cb) => realSetTimeout(cb, 0);

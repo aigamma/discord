@@ -51,8 +51,11 @@ export async function summarize({ channelId, guildId = null, userId = null, look
   const transcript = formatTranscript(rows);
   const t0 = Date.now();
 
-  const stream = await withAnthropicRetry(async () =>
-    client.messages.stream({
+  // Wrap creation + finalMessage in the retry — wrapping only stream()
+  // misses the actual transient failure path (network errors surface
+  // from finalMessage, not from the sync return).
+  const response = await withAnthropicRetry(async () => {
+    const stream = client.messages.stream({
       model: config.anthropic.model,
       max_tokens: 1500,
       system: SYSTEM,
@@ -62,18 +65,14 @@ export async function summarize({ channelId, guildId = null, userId = null, look
           content: `Summarize the following channel transcript. ${rows.length} messages, oldest first:\n\n${transcript}`,
         },
       ],
-    })
-  );
-
-  let accumulated = '';
-  stream.on('text', (_delta, snapshot) => {
-    accumulated = snapshot;
-    if (onProgress) {
-      try { onProgress(accumulated); } catch { /* swallow */ }
-    }
+    });
+    stream.on('text', (_delta, snapshot) => {
+      if (onProgress) {
+        try { onProgress(snapshot); } catch { /* swallow */ }
+      }
+    });
+    return await stream.finalMessage();
   });
-
-  const response = await stream.finalMessage();
   let text = response.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)

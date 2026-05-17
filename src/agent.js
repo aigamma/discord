@@ -180,25 +180,32 @@ async function answerInner({
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const stream = await withAnthropicRetry(async () =>
-        client.messages.stream({
+      // Wrap the FULL stream consumption (creation + finalMessage) in
+      // the retry so transient errors that surface from finalMessage are
+      // actually retried. Wrapping only client.messages.stream(...) was
+      // useless — the sync return rarely throws; the network failure
+      // appears when finalMessage's promise rejects. On retry, a fresh
+      // stream is created and the listener re-registered against it; the
+      // captured runningText accumulator resumes from `roundStart` so
+      // partial text from a failed attempt is overwritten by the
+      // retry's fresh snapshot (Discord edits converge to the final).
+      const roundStart = runningText;
+      const response = await withAnthropicRetry(async () => {
+        const stream = client.messages.stream({
           model,
           max_tokens: config.anthropic.maxTokens,
           system: systemBlocks,
           tools,
           messages,
-        })
-      );
-
-      const roundStart = runningText;
-      stream.on('text', (_delta, snapshot) => {
-        runningText = roundStart + (roundStart && snapshot ? '\n' : '') + snapshot;
-        if (onProgress) {
-          try { onProgress(runningText); } catch { /* swallow */ }
-        }
+        });
+        stream.on('text', (_delta, snapshot) => {
+          runningText = roundStart + (roundStart && snapshot ? '\n' : '') + snapshot;
+          if (onProgress) {
+            try { onProgress(runningText); } catch { /* swallow */ }
+          }
+        });
+        return await stream.finalMessage();
       });
-
-      const response = await stream.finalMessage();
       accumulateUsage(usage, response.usage);
       stopReason = response.stop_reason;
 
