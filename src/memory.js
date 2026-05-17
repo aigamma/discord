@@ -353,6 +353,27 @@ export function markSynced(localId) {
   markPgvectorSynced.run(localId, Date.now());
 }
 
+// Batch version — wraps N INSERT OR REPLACE in a single transaction so
+// the embedder's pgvector-sync loop pays one fsync per tick instead of
+// N. Falls back gracefully if SQLite refuses the transaction (corrupt
+// schema or active write conflict); the caller logs and retries next
+// tick.
+const markPgvectorSyncedBulkBegin = db.prepare('BEGIN');
+const markPgvectorSyncedBulkCommit = db.prepare('COMMIT');
+const markPgvectorSyncedBulkRollback = db.prepare('ROLLBACK');
+export function markSyncedBulk(localIds) {
+  if (!localIds || localIds.length === 0) return;
+  const now = Date.now();
+  markPgvectorSyncedBulkBegin.run();
+  try {
+    for (const id of localIds) markPgvectorSynced.run(id, now);
+    markPgvectorSyncedBulkCommit.run();
+  } catch (err) {
+    try { markPgvectorSyncedBulkRollback.run(); } catch { /* nested fail */ }
+    throw err;
+  }
+}
+
 export function findAssistantMessage(discordMessageId) {
   return findAssistantByDiscordId.get(discordMessageId);
 }

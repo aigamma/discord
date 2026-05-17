@@ -18,7 +18,7 @@ import {
   pendingEmbeddingsCount,
   setEmbedding,
   getPendingPgvectorRows,
-  markSynced,
+  markSyncedBulk,
 } from './memory.js';
 import { upsertChatMemory, isEnabled as pgvectorEnabled } from './pgvector.js';
 
@@ -81,7 +81,7 @@ async function pgvectorTick() {
   }));
 
   await upsertChatMemory(payload);
-  for (const row of rows) markSynced(row.id);
+  markSyncedBulk(rows.map((r) => r.id));
   synced += rows.length;
 }
 
