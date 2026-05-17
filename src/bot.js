@@ -300,6 +300,18 @@ async function handleHealth(interaction) {
     inline: false,
   });
 
+  // Lightweight database integrity probe — PRAGMA integrity_check returns
+  // 'ok' on a clean store. Anything else is a flag for the operator.
+  let integrity;
+  try {
+    const { db } = await import('./db.js');
+    const row = db.prepare('PRAGMA integrity_check(1)').get();
+    integrity = row?.integrity_check === 'ok' ? 'ok' : `degraded: ${row?.integrity_check ?? 'unknown'}`;
+  } catch (err) {
+    integrity = `probe failed: ${err?.message || err}`;
+  }
+  embed.addFields({ name: 'SQLite integrity', value: integrity, inline: true });
+
   await interaction.editReply({ embeds: [embed] });
 }
 

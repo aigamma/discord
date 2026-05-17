@@ -157,6 +157,29 @@ const selectChannelHistoryForSummary = db.prepare(`
   LIMIT ?
 `);
 
+/**
+ * Persist a single message (user or assistant) to the SQLite store.
+ * Returns the local row id, which can be cross-referenced from the
+ * `turns` audit log and is the join key for the pgvector mirror.
+ *
+ * @param {object} args
+ * @param {string} args.channelId
+ * @param {string|null} [args.guildId]
+ * @param {string} args.userId
+ * @param {string|null} [args.username]
+ * @param {string|null} [args.discordMessageId]
+ * @param {'user'|'assistant'|'system'} args.role
+ * @param {string} args.content
+ * @param {string|null} [args.model]
+ * @param {Array|null} [args.toolUses]
+ * @param {number|null} [args.inputTokens]
+ * @param {number|null} [args.outputTokens]
+ * @param {number|null} [args.cacheCreationInputTokens]
+ * @param {number|null} [args.cacheReadInputTokens]
+ * @param {number|null} [args.costUsd]
+ * @param {number|null} [args.latencyMs]
+ * @returns {number} Local row id.
+ */
 export function persistMessage({
   channelId,
   guildId = null,

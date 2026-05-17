@@ -94,6 +94,35 @@ function buildSystemBlocks() {
   ];
 }
 
+/**
+ * Run one Sonnet turn end-to-end: load short-term context, build the
+ * system prompt with cache-control breakpoint, stream the model response
+ * with tool-use loops, persist the user message + assistant message + an
+ * audit row in `turns`, and return the final text along with cost and
+ * usage attribution.
+ *
+ * @param {object} args
+ * @param {string} args.channelId            Discord channel id.
+ * @param {string|null} [args.guildId]       Discord guild id (null for DMs).
+ * @param {string} args.userId               Discord user id of the asker.
+ * @param {string|null} [args.username]      Display name for multi-user prefix.
+ * @param {string|null} [args.discordMessageId]  The user's source Discord message id.
+ * @param {boolean} [args.isMultiUser=false] Prefix user content with `[name]:` when true.
+ * @param {string} args.userMessage          The question text (raw, unprefixed).
+ * @param {string|null} [args.modelOverride] Override the configured default model.
+ * @param {(text: string) => void} [args.onProgress] Streaming callback; fires per text delta.
+ * @param {(toolNames: string[]) => void} [args.onToolStart] Fires when a round resolves to tool_use.
+ * @returns {Promise<{
+ *   text: string,
+ *   toolUses: Array<{name: string, input: object, round: number}>,
+ *   usage: {input_tokens: number, output_tokens: number, cache_creation_input_tokens: number, cache_read_input_tokens: number},
+ *   cost: number|null,
+ *   latency: number,
+ *   stopReason: string,
+ *   model: string,
+ *   assistantMessageId: number|null,
+ * }>}
+ */
 export async function answer({
   channelId,
   guildId = null,
