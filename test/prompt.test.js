@@ -48,8 +48,11 @@ test('prompt: MODEL_PLACEHOLDER is replaced', () => {
   assert.ok(/claude-(opus|sonnet|haiku)/.test(p), 'a real model id should appear');
 });
 
-test('prompt: contains operator identity block (Blue / Eric Allione)', () => {
+test('prompt: contains operator identity block with the configured values', async () => {
+  const { config } = await import('../src/config.js');
   const p = buildSystemPrompt();
-  assert.ok(p.includes('Blue'));
-  assert.ok(p.includes('Eric Allione') || p.includes('Options Alchemy'));
+  assert.ok(p.includes('[OPERATOR IDENTITY]'));
+  assert.ok(p.includes(config.operator.handle), `expected handle "${config.operator.handle}" in prompt`);
+  assert.ok(p.includes(config.operator.name), `expected name "${config.operator.name}" in prompt`);
+  assert.ok(p.includes(config.operator.communityName), `expected community "${config.operator.communityName}" in prompt`);
 });
