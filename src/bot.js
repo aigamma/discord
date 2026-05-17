@@ -637,19 +637,28 @@ async function handleMention(message, clientId) {
 
   const question = stripMention(message.content, clientId);
   if (!question) {
-    await message.reply('Ask me something. For example: `@bot what does VVIX:VIX look like right now?`');
+    await message.reply({
+      content: 'Ask me something. For example: `@bot what does VVIX:VIX look like right now?`',
+      allowedMentions: SAFE_ALLOWED_MENTIONS,
+    });
     return;
   }
 
   const rl = checkRateLimit(message.author.id);
   if (!rl.allowed) {
-    await message.reply(`Rate limited (${rl.count}/${rl.limit} this minute). Try again in ${rl.retryInSeconds}s.`);
+    await message.reply({
+      content: `Rate limited (${rl.count}/${rl.limit} this minute). Try again in ${rl.retryInSeconds}s.`,
+      allowedMentions: SAFE_ALLOWED_MENTIONS,
+    });
     return;
   }
 
   const bud = checkBudget(message.author.id);
   if (!bud.allowed) {
-    await message.reply(`Daily cost cap of $${bud.cap.toFixed(2)} reached. Resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h.`);
+    await message.reply({
+      content: `Daily cost cap of $${bud.cap.toFixed(2)} reached. Resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h.`,
+      allowedMentions: SAFE_ALLOWED_MENTIONS,
+    });
     return;
   }
 
