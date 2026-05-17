@@ -397,10 +397,15 @@ export function clearAllEmbeddings() {
 }
 
 const selectRecentFeedback = db.prepare(`
-  SELECT f.id, f.assistant_message_id, f.user_id, f.channel_id, f.sentiment,
-         f.created_at, m.content AS reply_content
+  SELECT
+    f.id, f.assistant_message_id, f.user_id, f.channel_id, f.sentiment,
+    f.created_at,
+    am.content AS reply_content,
+    um.content AS question_content
   FROM feedback f
-  LEFT JOIN messages m ON m.id = f.assistant_message_id
+  LEFT JOIN messages am ON am.id = f.assistant_message_id
+  LEFT JOIN turns t      ON t.assistant_message_id = f.assistant_message_id
+  LEFT JOIN messages um  ON um.id = t.user_message_id
   WHERE f.created_at >= ?
   ORDER BY f.created_at DESC
   LIMIT ?

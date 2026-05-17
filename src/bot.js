@@ -520,8 +520,9 @@ async function handleAdmin(interaction) {
       for (const f of r.rows.slice(0, 15)) {
         const when = new Date(f.created_at).toISOString().slice(0, 16).replace('T', ' ');
         const tag = f.sentiment === 'up' ? '👍' : '👎';
-        const snippet = (f.reply_content || '').slice(0, 80).replace(/\n/g, ' ');
-        const line = `${tag} ${when} <@${f.user_id}> · ${snippet}\n`;
+        const q = (f.question_content || '').slice(0, 60).replace(/\n/g, ' ');
+        const a = (f.reply_content || '').slice(0, 60).replace(/\n/g, ' ');
+        const line = `${tag} ${when} <@${f.user_id}>\n   Q: ${q || '(unknown)'}\n   A: ${a || '(empty)'}\n`;
         if (body.length + line.length > budget) break;
         body += line;
         included++;
