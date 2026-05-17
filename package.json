@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node --env-file=.env.local src/index.js",
-    "register": "node --env-file=.env.local scripts/register-commands.js"
+    "register": "node --env-file=.env.local scripts/register-commands.js",
+    "test": "node --test --test-reporter=spec"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
