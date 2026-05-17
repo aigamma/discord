@@ -16,7 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
 import { buildSystemPrompt } from './prompt.js';
 import { getToolSpecs, executeTool } from './tools/index.js';
-import { loadShortTermContext, persistMessage, persistTurn } from './memory.js';
+import { loadShortTermContext, persistMessage, persistTurn, loadUserNotesAsBlock } from './memory.js';
 import { priceUsage } from './pricing.js';
 import { beginWork, isShuttingDown } from './lifecycle.js';
 import { logger } from './logger.js';
@@ -78,19 +78,21 @@ function buildToolsWithCache(specs) {
 
 // Split the system prompt at the temporal block so the static prefix
 // (persona + identity + constraints + definitions + tools) stays cacheable
-// across turns and only the per-turn timestamp invalidates the second block.
-function buildSystemBlocks() {
-  const full = buildSystemPrompt();
+// across turns. Per-turn temporal + per-user notes sit after the
+// breakpoint and vary freely.
+function buildSystemBlocks({ userId } = {}) {
+  const userNotesBlock = userId ? loadUserNotesAsBlock(userId) : null;
+  const full = buildSystemPrompt({ userNotesBlock });
   const splitMarker = '\n\n[TIME AND MARKET SESSION]';
   const idx = full.indexOf(splitMarker);
   if (idx === -1) {
     return [{ type: 'text', text: full, cache_control: { type: 'ephemeral' } }];
   }
   const stable = full.slice(0, idx);
-  const temporal = full.slice(idx + 2);
+  const tail = full.slice(idx + 2);
   return [
     { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
-    { type: 'text', text: temporal },
+    { type: 'text', text: tail },
   ];
 }
 
@@ -143,7 +145,7 @@ export async function answer({
   const model = modelOverride || config.anthropic.model;
   const toolSpecs = getToolSpecs();
   const tools = buildToolsWithCache(toolSpecs);
-  const systemBlocks = buildSystemBlocks();
+  const systemBlocks = buildSystemBlocks({ userId });
 
   const historicalMessages = loadShortTermContext({ channelId, isMultiUser });
   const userContent = isMultiUser && username ? `[${username}]: ${userMessage}` : userMessage;

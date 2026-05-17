@@ -71,6 +71,21 @@ const commands = [
     .setDescription('What this bot can do')
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('remember')
+    .setDescription('Save a persistent note about yourself (the bot will use it on every future turn)')
+    .addStringOption((opt) =>
+      opt.setName('note').setDescription('What to remember (max 280 chars)').setRequired(true).setMaxLength(280)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('notes')
+    .setDescription('Show the notes the bot has saved about you (ephemeral)')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('forget-notes')
+    .setDescription('Clear all your saved notes')
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('admin')
     .setDescription('Operator-only utilities (owner gated)')
     .addSubcommand((s) =>

@@ -79,7 +79,7 @@ function buildTemporalContext() {
 Current date and time in New York: ${nyFormatter.format(now)} (${day}). Market session: ${session}. SPX 0DTE pricing pulses every five minutes during the regular session and ceases at the close; daily EOD readings refresh after 16:00 ET. When the user references "today" or "right now", reason from this timestamp. Note that intraday tools may return the most recent successful run, which can be stale by a session if the market is closed.`;
 }
 
-export function buildSystemPrompt() {
+export function buildSystemPrompt({ userNotesBlock = null } = {}) {
   const blocks = [
     CORE_PERSONA,
     OPERATOR_IDENTITY,
@@ -88,5 +88,8 @@ export function buildSystemPrompt() {
     config.supabase.enabled ? TOOLS_BLOCK : NO_TOOLS_BLOCK,
     buildTemporalContext(),
   ];
+  // User notes sit AFTER the temporal block so the cached static prefix
+  // remains shared across users; only the per-turn tail varies.
+  if (userNotesBlock) blocks.push(userNotesBlock);
   return blocks.join('\n\n').replace(/MODEL_PLACEHOLDER/g, config.anthropic.model);
 }

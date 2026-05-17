@@ -36,6 +36,19 @@ const applied = new Set(
 
 const migrations = [
   {
+    name: '005_user_notes',
+    sql: `
+      CREATE TABLE IF NOT EXISTS user_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_notes_user
+        ON user_notes(user_id, created_at DESC);
+    `,
+  },
+  {
     name: '004_feedback',
     sql: `
       CREATE TABLE IF NOT EXISTS feedback (

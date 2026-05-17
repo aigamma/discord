@@ -14,10 +14,13 @@ import { ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits, MessageFl
 import { answer } from './agent.js';
 import { config } from './config.js';
 import {
+  addUserNote,
   attachDiscordMessageId,
   clearShortTermContext,
+  clearUserNotes,
   feedbackCounts,
   findAssistantMessage,
+  listUserNotes,
   recordFeedback,
   removeFeedback,
   totalMessageCount,
@@ -320,6 +323,54 @@ async function handleHealth(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+async function handleRemember(interaction) {
+  const note = interaction.options.getString('note', true).trim();
+  if (!note) {
+    await interaction.reply({ content: 'Empty note.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const r = addUserNote({ userId: interaction.user.id, content: note });
+  if (!r.ok) {
+    if (r.reason === 'full') {
+      await interaction.reply({
+        content: `You're at the ${r.cap}-note cap. Use \`/notes\` to review, \`/forget-notes\` to clear.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.reply({ content: 'Empty note.', flags: MessageFlags.Ephemeral });
+    }
+    return;
+  }
+  await interaction.reply({
+    content: `Saved. ${r.remaining} slot${r.remaining === 1 ? '' : 's'} remaining.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleListNotes(interaction) {
+  const notes = listUserNotes(interaction.user.id);
+  if (notes.length === 0) {
+    await interaction.reply({
+      content: 'No notes saved. Add one with `/remember note:<text>`.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const lines = notes.map((n, i) => `${i + 1}. ${n.content}`).join('\n');
+  await interaction.reply({
+    content: `**Your notes (${notes.length})**\n${lines}`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleForgetNotes(interaction) {
+  const cleared = clearUserNotes(interaction.user.id);
+  await interaction.reply({
+    content: cleared > 0 ? `Cleared ${cleared} note(s).` : 'No notes to clear.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 async function handleAbout(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('Strategic Trading Bot')
@@ -401,6 +452,9 @@ async function handleSlashCommand(interaction) {
     case 'summarize': return handleSummarize(interaction);
     case 'admin':     return handleAdmin(interaction);
     case 'about':     return handleAbout(interaction);
+    case 'remember':       return handleRemember(interaction);
+    case 'notes':          return handleListNotes(interaction);
+    case 'forget-notes':   return handleForgetNotes(interaction);
   }
 }
 

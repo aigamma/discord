@@ -395,6 +395,66 @@ export function recentFeedback({ hours = 168, limit = 20 } = {}) {
   return selectRecentFeedback.all(since, limit);
 }
 
+// ---- User notes ---------------------------------------------------------
+// Opt-in per-user context. Each note is a short free-form line the user
+// asked the bot to remember about them. Surfaces in the system prompt
+// AFTER the cache breakpoint so it does not invalidate the shared cached
+// prefix.
+
+const MAX_NOTES_PER_USER = 12;
+const MAX_NOTE_CHARS = 280;
+
+const insertUserNote = db.prepare(`
+  INSERT INTO user_notes (user_id, content, created_at) VALUES (?, ?, ?)
+`);
+const selectUserNotes = db.prepare(`
+  SELECT id, content, created_at FROM user_notes
+  WHERE user_id = ?
+  ORDER BY created_at ASC, id ASC
+`);
+const deleteUserNoteById = db.prepare(`
+  DELETE FROM user_notes WHERE id = ? AND user_id = ?
+`);
+const deleteAllUserNotes = db.prepare(`
+  DELETE FROM user_notes WHERE user_id = ?
+`);
+const countUserNotes = db.prepare(`
+  SELECT COUNT(*) AS n FROM user_notes WHERE user_id = ?
+`);
+
+export function addUserNote({ userId, content }) {
+  const trimmed = (content || '').trim().slice(0, MAX_NOTE_CHARS);
+  if (!trimmed) return { ok: false, reason: 'empty' };
+  const existing = countUserNotes.get(userId).n;
+  if (existing >= MAX_NOTES_PER_USER) {
+    return { ok: false, reason: 'full', cap: MAX_NOTES_PER_USER };
+  }
+  const result = insertUserNote.run(userId, trimmed, Date.now());
+  return { ok: true, id: Number(result.lastInsertRowid), remaining: MAX_NOTES_PER_USER - existing - 1 };
+}
+
+export function listUserNotes(userId) {
+  return selectUserNotes.all(userId);
+}
+
+export function deleteUserNote({ userId, id }) {
+  const r = deleteUserNoteById.run(id, userId);
+  return Number(r.changes);
+}
+
+export function clearUserNotes(userId) {
+  const r = deleteAllUserNotes.run(userId);
+  return Number(r.changes);
+}
+
+export function loadUserNotesAsBlock(userId) {
+  if (!userId) return null;
+  const rows = selectUserNotes.all(userId);
+  if (rows.length === 0) return null;
+  const lines = rows.map((r, i) => `${i + 1}. ${r.content}`);
+  return `[YOUR NOTES FOR THIS USER]\nThe user has asked you to remember the following. Apply them when relevant; do not announce that you are doing so.\n\n${lines.join('\n')}`;
+}
+
 // Aggregate usage stats over a rolling window (default 24h) for the /usage
 // command. Returns total turns, tokens, cost, plus a per-user breakdown.
 const selectUsageSummary = db.prepare(`
