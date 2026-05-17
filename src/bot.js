@@ -191,6 +191,11 @@ async function handleForget(interaction) {
 }
 
 async function handleUsage(interaction) {
+  // Defer first: usageSummary runs several SQLite aggregations and a
+  // per-row latency scan. Fast on a fresh store, can stretch toward
+  // Discord's 3-second initial-response deadline on a year-old one or
+  // when hours=720 (the max). Defer gives us 15 min of headroom.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const hours = interaction.options.getInteger('hours') || 24;
   const data = usageSummary(hours);
   const total = data.total || {};
@@ -272,7 +277,7 @@ async function handleUsage(interaction) {
     });
   }
 
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: SAFE_ALLOWED_MENTIONS });
+  await interaction.editReply({ embeds: [embed], allowedMentions: SAFE_ALLOWED_MENTIONS });
 }
 
 async function handleSearch(interaction) {
