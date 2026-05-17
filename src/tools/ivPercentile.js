@@ -27,7 +27,8 @@ export const spec = {
 };
 
 export async function execute({ lookback_days = 252 } = {}) {
-  const fromDate = new Date(Date.now() - lookback_days * 86400 * 1000)
+  const days = Math.min(Math.max(parseInt(lookback_days, 10) || 252, 30), 1260);
+  const fromDate = new Date(Date.now() - days * 86400 * 1000)
     .toISOString()
     .slice(0, 10);
 
@@ -38,15 +39,23 @@ export async function execute({ lookback_days = 252 } = {}) {
     limit: '2000',
   });
 
-  const ivSeries = rows.map((r) => r.iv_30d_cm).filter((v) => v != null);
-  if (ivSeries.length === 0) {
+  // Filter rows down to those with a usable IV reading. Using the
+  // unfiltered tail-row would silently produce `iv < null` comparisons
+  // (JS coerces null to 0, so the percentile rank would be computed
+  // against the constant 0). Latest must come from the filtered series.
+  // Note: Number(null) === 0, so the null check must precede Number().
+  const ivRows = rows.filter((r) => r.iv_30d_cm != null && Number.isFinite(Number(r.iv_30d_cm)));
+  if (ivRows.length === 0) {
     return { error: 'No iv_30d_cm rows in the requested window.' };
   }
 
-  const latest = rows[rows.length - 1];
-  const ivNow = latest.iv_30d_cm;
-  const hvNow = latest.hv_20d_yz;
+  const latest = ivRows[ivRows.length - 1];
+  const ivNow = Number(latest.iv_30d_cm);
+  const hvNow = latest.hv_20d_yz != null && Number.isFinite(Number(latest.hv_20d_yz))
+    ? Number(latest.hv_20d_yz)
+    : null;
 
+  const ivSeries = ivRows.map((r) => Number(r.iv_30d_cm));
   const sorted = [...ivSeries].sort((a, b) => a - b);
   const below = sorted.filter((v) => v < ivNow).length;
   const percentile = +((below / sorted.length) * 100).toFixed(1);
@@ -55,13 +64,13 @@ export async function execute({ lookback_days = 252 } = {}) {
 
   return {
     as_of: latest.trading_date,
-    spx_close: latest.spx_close,
+    spx_close: Number(latest.spx_close),
     iv_30d_cm: ivNow,
     hv_20d_yz: hvNow,
-    variance_risk_premium: ivNow != null && hvNow != null ? +(ivNow - hvNow).toFixed(4) : null,
+    variance_risk_premium: hvNow != null ? +(ivNow - hvNow).toFixed(4) : null,
     percentile_rank: percentile,
     lookback: {
-      days: lookback_days,
+      days,
       sample_size: ivSeries.length,
       min: +sorted[0].toFixed(4),
       median: +median.toFixed(4),

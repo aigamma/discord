@@ -37,14 +37,25 @@ export async function execute({ lookback_days = 60 } = {}) {
     return { error: `No daily_gex_stats rows in the last ${days} days.` };
   }
 
-  const netGexSeries = rows.map((r) => Number(r.net_gex)).filter((n) => Number.isFinite(n));
+  // Latest must come from the rows with a usable net_gex value. Using
+  // the unfiltered tail when the most recent ingest left net_gex null
+  // would silently make latestNetGex = NaN; `v < NaN` is always false,
+  // so the percentile rank rendered as 0.0 and looked like 'never been
+  // this low' to the model — a serious misread.
+  // Number(null) === 0, so a `Number.isFinite(Number(x))` check alone
+  // would let null through. Explicit null check first.
+  const rowsWithGex = rows.filter((r) => r.net_gex != null && Number.isFinite(Number(r.net_gex)));
+  const netGexSeries = rowsWithGex.map((r) => Number(r.net_gex));
   const sorted = [...netGexSeries].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
 
-  const latest = rows[rows.length - 1];
+  const latest = rowsWithGex.length ? rowsWithGex[rowsWithGex.length - 1] : rows[rows.length - 1];
   const latestNetGex = Number(latest.net_gex);
-  const below = sorted.filter((v) => v < latestNetGex).length;
-  const netGexPercentile = sorted.length ? +((below / sorted.length) * 100).toFixed(1) : null;
+  const latestGexFinite = Number.isFinite(latestNetGex);
+  const below = latestGexFinite ? sorted.filter((v) => v < latestNetGex).length : 0;
+  const netGexPercentile = sorted.length && latestGexFinite
+    ? +((below / sorted.length) * 100).toFixed(1)
+    : null;
 
   return {
     lookback_days: days,
