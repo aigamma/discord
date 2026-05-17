@@ -267,7 +267,12 @@ them to return raw chain data.
 - Per-user daily cost cap from the turns audit log (`DAILY_USER_COST_CAP_USD`).
 - Per-turn cost audit (input/output/cache_write/cache_read priced per
   model, written to `turns` table; `/usage` aggregates a window).
-- Read-only DuckDB attach with SELECT-only SQL guard and 30s/1000-row caps.
+- Read-only DuckDB attach with three-layer guard: SELECT/WITH-only
+  parser, function-name deny list against `read_csv` /
+  `read_parquet` / `glob` / `load_extension` etc., plus engine-level
+  `enable_external_access = false` + `lock_configuration = true` so a
+  prompt-injected SELECT can't reach the host filesystem. 30s and
+  1000-row caps on top.
 - Tool-result cache with per-tool TTLs.
 - HTTP `/healthz` for orchestration probes plus the `/health` slash command for in-Discord state.
 - Online SQLite backup via `VACUUM INTO` (`npm run backup` or `/admin backup`).
