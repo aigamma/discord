@@ -21,7 +21,8 @@ be forked.
 | `/remember <note>` | Save a persistent note about yourself (≤280 chars, max 12 notes). Surfaces in every future system prompt for you. |
 | `/notes` | List your saved notes (ephemeral). |
 | `/forget-notes` | Clear all your saved notes. |
-| `/forget` | Clear this channel's short-term context window. |
+| `/forget` | Clear this channel's short-term context window. Non-destructive — older messages stay searchable via `/search`. |
+| `/export` | Download this channel's persisted Q&A as a JSON attachment (24MB cap; caller-only). |
 | `/usage [hours]` | Ephemeral cost / token / latency summary with per-model, per-tool, feedback breakdowns. |
 | `/health` | Process state: pgvector reachability, embedder queue, DuckDB shards, tool cache stats, SQLite integrity. |
 | `/about` | Capability tour for new community members. |
