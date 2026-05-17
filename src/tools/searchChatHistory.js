@@ -70,9 +70,18 @@ async function searchPgvector(queryVec, k, minSim, channelId, guildId) {
     similarityFloor: minSim,
     channelId,
   });
+  // Drop rows the server returned with a non-finite similarity (a
+  // malformed vector on disk, an RPC bug, or a future schema mismatch).
+  // The SQLite fallback already filters NaN; mirror that here so a
+  // pgvector hiccup can't surface "NaN" strings to the model. Cheap
+  // belt-and-suspenders on top of the server's similarity_floor.
+  const valid = rows.filter((r) => {
+    const s = Number(r.similarity);
+    return Number.isFinite(s) && s >= minSim;
+  });
   const filtered = guildId
-    ? rows.filter((r) => getGuildIdFor(r.local_id) === guildId)
-    : rows;
+    ? valid.filter((r) => getGuildIdFor(r.local_id) === guildId)
+    : valid;
   return filtered.slice(0, k).map((r) => ({
     similarity: +Number(r.similarity).toFixed(3),
     asked_by: r.username || r.user_id,
