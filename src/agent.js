@@ -319,7 +319,13 @@ async function answerInner({
   const cost = priceUsage(model, usage);
 
   if (!finalText && toolRounds >= MAX_TOOL_ROUNDS) {
-    finalText = '_(Hit the tool-use round limit before reaching a final answer.)_';
+    const truncationNote = '_(Hit the tool-use round limit. The bot stopped chaining tools to bound cost.)_';
+    // Preserve any preamble text the model emitted during the rounds so
+    // the user sees the partial answer instead of having streamed content
+    // vanish under the placeholder.
+    finalText = runningText.trim()
+      ? runningText.trim() + '\n\n' + truncationNote
+      : truncationNote;
     stopReason = 'tool_rounds_exceeded';
   }
 
