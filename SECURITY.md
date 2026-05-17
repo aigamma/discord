@@ -37,8 +37,13 @@ The bot accepts free-form text from Discord users and routes it through:
 1. Anthropic API (model output + server-side tools).
 2. Local tools that read Supabase, DuckDB shards, and the local SQLite
    store. None of these tools accept user-supplied SQL except
-   `query_duckdb`, which enforces a single-statement SELECT-only guard
-   with a keyword blocklist (see `src/duckdb.js`).
+   `query_duckdb`, which enforces three layers of defense (see
+   `src/duckdb.js`): (a) a single-statement SELECT/WITH-only guard with
+   a keyword blocklist, (b) a function-name deny list against DuckDB's
+   file-reading table functions (`read_csv`, `read_parquet`, `glob`,
+   `load_extension`, etc.), and (c) engine-level
+   `SET enable_external_access = false` + `SET lock_configuration = true`
+   applied to the DuckDB connection after the shards attach.
 3. Read-only attachments to the backtester DuckDB shards.
 
 The model is not given write access to any data store. The bot writes
