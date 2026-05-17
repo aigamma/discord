@@ -11,6 +11,7 @@ import { iterEmbeddedUserMessages, getAssistantResponseFor } from '../memory.js'
 import { searchChatMemoryRpc, isEnabled as pgvectorEnabled } from '../pgvector.js';
 import { config } from '../config.js';
 import { db } from '../db.js';
+import { logger } from '../logger.js';
 
 // Build a Discord deep-link to a persisted message when we have all three
 // ids. Without guild_id the link points at the DM channel. Without
@@ -127,7 +128,6 @@ export async function execute({ query, limit = 5, channel_id = null } = {}) {
         similarity_floor: minSim,
       };
     } catch (err) {
-      const { logger } = await import('../logger.js');
       logger.warn('search pgvector failed, falling back to sqlite', { err });
     }
   }
