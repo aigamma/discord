@@ -213,6 +213,24 @@ async function handleUsage(interaction) {
       { name: 'Feedback', value: `${fb.up} up / ${fb.down} down`, inline: true },
     );
 
+  // Prompt-cache hit ratio — informs whether the system prompt is
+  // actually being cached or whether something is busting the cache
+  // every turn. Anthropic considers a "hit" any input token that came
+  // from cache. The denominator is total input tokens (cache_read +
+  // cache_write + uncached input). If cache_read dominates, the static
+  // prefix is being reused well; if cache_write dominates, the cache
+  // is being created (first turn or expired). If neither, the prompt
+  // is not being cached at all and the prefix breakpoint is broken.
+  const totalInput = (total.input_tokens ?? 0) + (total.cache_creation_tokens ?? 0) + (total.cache_read_tokens ?? 0);
+  if (totalInput > 0) {
+    const hitPct = ((total.cache_read_tokens ?? 0) / totalInput) * 100;
+    embed.addFields({
+      name: 'Prompt cache',
+      value: `${hitPct.toFixed(0)}% read · ${(total.cache_creation_tokens ?? 0).toLocaleString()} write tokens`,
+      inline: true,
+    });
+  }
+
   if (data.by_model.length) {
     embed.addFields({
       name: 'By model',
