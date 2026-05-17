@@ -149,6 +149,20 @@ const migrations = [
       );
     `,
   },
+  {
+    name: '007_turns_lookup_indexes',
+    sql: `
+      -- Indexes for the JOINs the embedder's pgvector-pending query
+      -- and the postmortem report do per row. Without them, every
+      -- LEFT JOIN turns ON t.user_message_id = m.id was a full scan
+      -- of turns — measurable on a long-lived store, invisible on a
+      -- fresh one. SQLite does NOT auto-index foreign-key columns.
+      CREATE INDEX IF NOT EXISTS idx_turns_user_message
+        ON turns(user_message_id);
+      CREATE INDEX IF NOT EXISTS idx_turns_assistant_message
+        ON turns(assistant_message_id);
+    `,
+  },
 ];
 
 for (const m of migrations) {
