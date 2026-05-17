@@ -5,7 +5,58 @@ first within each section. Versioning is incremental; pre-1.0 only.
 
 ## Unreleased
 
+### Correctness
+- System prompt's market-session label honors the 2026-2027 NYSE
+  holiday calendar plus the three early-close days (day before
+  Independence Day, day after Thanksgiving, Christmas Eve). The bot
+  no longer tells a trader the market is open on Christmas. A warn
+  fires once if the calendar's max year is in the past so the
+  operator knows to extend it.
+- gexHistory, vrpHistory, ivPercentile null-safety pass: numeric
+  source columns now surface as null when missing instead of
+  coercing through Number(null) === 0. The user-facing misread was
+  'SPX closed at 0' on rows where an ingest had landed iv/hv but
+  not spx_close.
+- Reaction events on partial (uncached) bot messages now fetch the
+  message before checking authorship, so feedback on older bot
+  replies actually records to the feedback table.
+- Empty assistant text now warns rather than persisting silently —
+  surfaces upstream prompt-injection / model-issue patterns the
+  operator would otherwise have to scan the audit log to find.
+
+### Reliability
+- withAnthropicRetry covers network-level errors (ECONNRESET, ETIMEDOUT,
+  APIConnectionError, undici cause chains) in addition to HTTP
+  status. A transient socket failure no longer hard-fails a turn
+  on its first attempt.
+- Anthropic SDK maxRetries=0 with our wrapper as the sole retry
+  authority. The doubled retry layers could stack to ~9 round-trips
+  per agent round on a transient 503; one predictable retry policy
+  now bounds total worst-case at ~12.2 min, comfortably under
+  Discord's 15-min deferReply window. Per-attempt timeout pinned at
+  4 min to match.
+- Voyage embed() retries once on transient HTTP (5xx, 429) or
+  socket errors. Live /search no longer hard-fails on a single
+  Voyage hiccup.
+- DuckDB runSelect serialized through a FIFO mutex so two parallel
+  query_duckdb tool_uses in one agent round can't race the shared
+  connection's internal state.
+- Progress reporter serializes Discord edits: a slow edit (rate-
+  limit backoff > MIN_EDIT_INTERVAL_MS) no longer spawns a
+  concurrent edit on the same message, eliminating self-inflicted
+  429s.
+- summarize() now participates in the graceful-shutdown drain via
+  beginWork/releaseWork. A SIGTERM mid-summary used to cut the
+  stream off; now it waits.
+- Tool execution failures log at warn level so a systematic
+  regression (renamed table, expired key, broken RPC) surfaces in
+  logs instead of only as '{error: ...}' to the model.
+
 ### Performance
+- Migration 009 adds an index on turns(user_id, created_at DESC).
+  The budget-cap query (userSpendSince) ran on every gated /ask,
+  /summarize, and @mention when DAILY_USER_COST_CAP_USD was set;
+  without the index every call full-scanned the turns table.
 - Migration 007 adds indexes on turns(user_message_id) and
   turns(assistant_message_id). Every LEFT JOIN turns ... ON
   t.user_message_id = m.id (embedder, recentFeedback, postmortem) was
@@ -25,6 +76,10 @@ first within each section. Versioning is incremental; pre-1.0 only.
   iterates the entire embedded corpus to drop most of it.
 
 ### Added
+- `/usage` shows a per-user spend breakdown when invoked by the
+  owner (cost / turns / tokens, top 8). Surveillance-aware: gated
+  by isOwner so non-owners don't see the table; bot uses
+  no-ping mentions so the list doesn't notify users.
 - `/forget-note number:<n>` removes a single saved note by its 1-based
   number from `/notes` (the existing `/forget-notes` clears all). Wires
   the deleteUserNote backend that previously only the test suite
@@ -111,6 +166,9 @@ first within each section. Versioning is incremental; pre-1.0 only.
   `@everyone` doesn't fire notifications.
 
 ### Security
+- CI gates against high+ npm audit advisories on production deps
+  (moderate and below are noise on a 3-dep project; high/critical
+  warrant operator attention).
 - DuckDB SELECT-only guard extended with a function-name deny list
   (`read_csv`, `read_parquet`, `read_json`, `read_text`, `read_blob`,
   `glob`, `parquet_scan/metadata`, `copy_database`, `load_extension`,
