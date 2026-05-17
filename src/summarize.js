@@ -93,11 +93,10 @@ export async function summarize({ channelId, guildId = null, userId = null, look
   // audit-thread-through change).
   if (userId) {
     try {
-      const uMid = persistMessage({
-        channelId, guildId, userId,
-        role: 'user', content: `[/summarize messages=${rows.length}]`,
-        model: config.anthropic.model,
-      });
+      // No user-message row: a synthetic '[/summarize messages=N]' line
+      // would pollute the embeddings corpus and surface as a confusing hit
+      // in search_chat_history. The turns row references user_message_id
+      // null (column is nullable), which the audit log handles.
       const aMid = persistMessage({
         channelId, guildId,
         userId: 'bot', username: 'bot',
@@ -111,7 +110,7 @@ export async function summarize({ channelId, guildId = null, userId = null, look
       });
       persistTurn({
         channelId, userId,
-        userMessageId: uMid, assistantMessageId: aMid,
+        userMessageId: null, assistantMessageId: aMid,
         model: config.anthropic.model,
         stopReason: response.stop_reason || 'end_turn',
         toolRounds: 0,
