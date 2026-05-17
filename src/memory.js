@@ -338,13 +338,11 @@ export function getPendingEmbeddings(limit = 32) {
   return selectPendingEmbeddings.all(limit);
 }
 
-export function setEmbedding(id, blob, model) {
-  updateEmbedding.run(blob, model, id);
-}
-
-// Batch version of setEmbedding. Wraps N UPDATEs in one transaction so
-// the embedder's tick pays a single fsync per batch instead of one per
-// row. The caller passes [{id, blob, model}].
+// Bulk-only by design — the embedder always writes in batches and a
+// per-row helper would be dead code with no fsync amortization. If a
+// future caller needs single-row writes, it should still go through
+// setEmbeddingBulk with a one-element array for consistent transaction
+// semantics.
 const setEmbeddingBulkBegin = db.prepare('BEGIN');
 const setEmbeddingBulkCommit = db.prepare('COMMIT');
 const setEmbeddingBulkRollback = db.prepare('ROLLBACK');
@@ -388,15 +386,9 @@ export function getPendingPgvectorRows(limit = 32) {
   return selectPendingPgvectorSync.all(limit);
 }
 
-export function markSynced(localId) {
-  markPgvectorSynced.run(localId, Date.now());
-}
-
-// Batch version — wraps N INSERT OR REPLACE in a single transaction so
-// the embedder's pgvector-sync loop pays one fsync per tick instead of
-// N. Falls back gracefully if SQLite refuses the transaction (corrupt
-// schema or active write conflict); the caller logs and retries next
-// tick.
+// Bulk-only by design. The embedder always marks the rows it just
+// successfully upserted to pgvector in a single batch; a per-row helper
+// would be dead code.
 const markPgvectorSyncedBulkBegin = db.prepare('BEGIN');
 const markPgvectorSyncedBulkCommit = db.prepare('COMMIT');
 const markPgvectorSyncedBulkRollback = db.prepare('ROLLBACK');
