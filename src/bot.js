@@ -13,13 +13,34 @@
 import { ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { answer } from './agent.js';
 import { config } from './config.js';
-import { clearShortTermContext, totalMessageCount, usageSummary } from './memory.js';
+import {
+  attachDiscordMessageId,
+  clearShortTermContext,
+  feedbackCounts,
+  findAssistantMessage,
+  recordFeedback,
+  removeFeedback,
+  totalMessageCount,
+  usageSummary,
+} from './memory.js';
 import { execute as searchHistory } from './tools/searchChatHistory.js';
 import { check as checkRateLimit } from './rateLimiter.js';
 import { isReady as duckdbReady, getAttachedShards } from './duckdb.js';
 import { getEmbedderStats } from './embedder.js';
 import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector.js';
+import { summarize } from './summarize.js';
 import { logger } from './logger.js';
+
+const MODEL_CHOICES = {
+  sonnet: 'claude-sonnet-4-6',
+  opus: 'claude-opus-4-7',
+  haiku: 'claude-haiku-4-5-20251001',
+};
+
+const FEEDBACK_EMOJI = {
+  '👍': 'up',
+  '👎': 'down',
+};
 
 const MAX_DISCORD_MESSAGE = 2000;
 
@@ -59,6 +80,9 @@ function formatUsd(n) {
 
 async function handleAsk(interaction) {
   const question = interaction.options.getString('question', true).trim();
+  const modelKey = interaction.options.getString('model') || null;
+  const modelOverride = modelKey ? MODEL_CHOICES[modelKey] : null;
+
   if (!question) {
     await interaction.reply({ content: 'Empty question.', flags: MessageFlags.Ephemeral });
     return;
@@ -82,16 +106,42 @@ async function handleAsk(interaction) {
       username: interaction.user.username,
       isMultiUser: isMultiUserChannel(interaction.channel),
       userMessage: question,
+      modelOverride,
     });
     const text = result.text || '_(no response)_';
     const parts = chunk(text);
-    await interaction.editReply(parts[0]);
+    const sentReply = await interaction.editReply(parts[0]);
+    // The first reply carries the assistant's Discord message id. Attach
+    // it to the persisted row so reaction feedback can find this turn.
+    if (result.assistantMessageId && sentReply?.id) {
+      attachDiscordMessageId(result.assistantMessageId, sentReply.id);
+    }
     for (let i = 1; i < parts.length; i++) {
       await interaction.followUp(parts[i]);
     }
   } catch (err) {
     logger.error('ask command failed', { err, user_id: interaction.user.id });
     await interaction.editReply(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
+  }
+}
+
+async function handleSummarize(interaction) {
+  const limit = interaction.options.getInteger('messages') || 100;
+  await interaction.deferReply();
+  try {
+    const result = await summarize({
+      channelId: interaction.channelId,
+      lookbackMessages: limit,
+    });
+    const text = result.text || '_(no summary produced)_';
+    const parts = chunk(text);
+    await interaction.editReply(parts[0]);
+    for (let i = 1; i < parts.length; i++) {
+      await interaction.followUp(parts[i]);
+    }
+  } catch (err) {
+    logger.error('summarize failed', { err });
+    await interaction.editReply(`Summary failed: \`${err?.message || err}\``).catch(() => {});
   }
 }
 
@@ -107,6 +157,7 @@ async function handleUsage(interaction) {
   const hours = interaction.options.getInteger('hours') || 24;
   const data = usageSummary(hours);
   const total = data.total || {};
+  const fb = feedbackCounts(hours);
 
   const embed = new EmbedBuilder()
     .setTitle(`Usage — last ${hours}h`)
@@ -118,6 +169,7 @@ async function handleUsage(interaction) {
       { name: 'Input tokens', value: (total.input_tokens ?? 0).toLocaleString(), inline: true },
       { name: 'Output tokens', value: (total.output_tokens ?? 0).toLocaleString(), inline: true },
       { name: 'Cache read tokens', value: (total.cache_read_tokens ?? 0).toLocaleString(), inline: true },
+      { name: 'Feedback', value: `${fb.up} up / ${fb.down} down`, inline: true },
     );
 
   if (data.by_model.length) {
@@ -211,11 +263,46 @@ async function handleHealth(interaction) {
 
 async function handleSlashCommand(interaction) {
   switch (interaction.commandName) {
-    case 'ask':    return handleAsk(interaction);
-    case 'forget': return handleForget(interaction);
-    case 'usage':  return handleUsage(interaction);
-    case 'search': return handleSearch(interaction);
-    case 'health': return handleHealth(interaction);
+    case 'ask':       return handleAsk(interaction);
+    case 'forget':    return handleForget(interaction);
+    case 'usage':     return handleUsage(interaction);
+    case 'search':    return handleSearch(interaction);
+    case 'health':    return handleHealth(interaction);
+    case 'summarize': return handleSummarize(interaction);
+  }
+}
+
+async function handleReactionChange(reaction, user, added) {
+  if (user.bot) return;
+  if (reaction.partial) {
+    try { await reaction.fetch(); } catch { return; }
+  }
+  const sentiment = FEEDBACK_EMOJI[reaction.emoji.name];
+  if (!sentiment) return;
+  if (reaction.message.author?.id !== reaction.client.user.id) return;
+
+  const local = findAssistantMessage(reaction.message.id);
+  if (!local) return;
+
+  if (added) {
+    recordFeedback({
+      assistantMessageId: local.id,
+      userId: user.id,
+      channelId: reaction.message.channelId,
+      sentiment,
+      emoji: reaction.emoji.name,
+    });
+    logger.info('feedback recorded', {
+      assistant_message_id: local.id,
+      user_id: user.id,
+      sentiment,
+    });
+  } else {
+    removeFeedback({ assistantMessageId: local.id, userId: user.id });
+    logger.info('feedback removed', {
+      assistant_message_id: local.id,
+      user_id: user.id,
+    });
   }
 }
 
@@ -249,7 +336,10 @@ async function handleMention(message, clientId) {
     });
     const text = result.text || '_(no response)_';
     const parts = chunk(text);
-    await message.reply(parts[0]);
+    const sent = await message.reply(parts[0]);
+    if (result.assistantMessageId && sent?.id) {
+      attachDiscordMessageId(result.assistantMessageId, sent.id);
+    }
     for (let i = 1; i < parts.length; i++) {
       await message.channel.send(parts[i]);
     }
@@ -266,8 +356,10 @@ export function buildClient() {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.GuildMessageReactions,
+      GatewayIntentBits.DirectMessageReactions,
     ],
-    partials: [Partials.Channel],
+    partials: [Partials.Channel, Partials.Message, Partials.Reaction],
   });
 
   client.once(Events.ClientReady, (c) => {
@@ -295,6 +387,18 @@ export function buildClient() {
 
   client.on(Events.MessageCreate, async (message) => {
     await handleMention(message, config.discord.clientId);
+  });
+
+  client.on(Events.MessageReactionAdd, async (reaction, user) => {
+    await handleReactionChange(reaction, user, true).catch((err) =>
+      logger.error('reaction add failed', { err })
+    );
+  });
+
+  client.on(Events.MessageReactionRemove, async (reaction, user) => {
+    await handleReactionChange(reaction, user, false).catch((err) =>
+      logger.error('reaction remove failed', { err })
+    );
   });
 
   return client;

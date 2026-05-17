@@ -13,6 +13,16 @@ const commands = [
     .addStringOption((opt) =>
       opt.setName('question').setDescription('Your question').setRequired(true).setMaxLength(1500)
     )
+    .addStringOption((opt) =>
+      opt
+        .setName('model')
+        .setDescription('Override the model for this single turn (default sonnet)')
+        .addChoices(
+          { name: 'Sonnet 4.6 (default, fast)', value: 'sonnet' },
+          { name: 'Opus 4.7 (deeper reasoning, 5x cost)', value: 'opus' },
+          { name: 'Haiku 4.5 (fastest, cheapest)', value: 'haiku' }
+        )
+    )
     .toJSON(),
   new SlashCommandBuilder()
     .setName('forget')
@@ -44,6 +54,17 @@ const commands = [
   new SlashCommandBuilder()
     .setName('health')
     .setDescription('Show bot health: DB, embedder queue, pgvector reachability, attached shards')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('summarize')
+    .setDescription("Brief of this channel's recent conversation")
+    .addIntegerOption((opt) =>
+      opt
+        .setName('messages')
+        .setDescription('How many recent messages to summarize (default 100)')
+        .setMinValue(10)
+        .setMaxValue(500)
+    )
     .toJSON(),
 ];
 

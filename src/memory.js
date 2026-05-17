@@ -102,6 +102,14 @@ const selectAssistantRowForUser = db.prepare(`
   LIMIT 1
 `);
 
+const updateDiscordMessageId = db.prepare(`
+  UPDATE messages SET discord_message_id = ? WHERE id = ?
+`);
+
+export function attachDiscordMessageId(localId, discordMessageId) {
+  if (discordMessageId) updateDiscordMessageId.run(discordMessageId, localId);
+}
+
 const selectPendingPgvectorSync = db.prepare(`
   SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.role,
          m.content, m.embedding, m.embedding_model
@@ -115,6 +123,38 @@ const selectPendingPgvectorSync = db.prepare(`
 
 const markPgvectorSynced = db.prepare(`
   INSERT OR REPLACE INTO pgvector_sync (local_id, synced_at) VALUES (?, ?)
+`);
+
+const findAssistantByDiscordId = db.prepare(`
+  SELECT id FROM messages
+  WHERE role = 'assistant'
+    AND discord_message_id = ?
+  LIMIT 1
+`);
+
+const insertFeedback = db.prepare(`
+  INSERT OR REPLACE INTO feedback
+    (assistant_message_id, user_id, channel_id, sentiment, emoji, created_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+
+const deleteFeedback = db.prepare(`
+  DELETE FROM feedback WHERE assistant_message_id = ? AND user_id = ?
+`);
+
+const feedbackSummary = db.prepare(`
+  SELECT sentiment, COUNT(*) AS n
+  FROM feedback
+  WHERE created_at >= ?
+  GROUP BY sentiment
+`);
+
+const selectChannelHistoryForSummary = db.prepare(`
+  SELECT role, username, content, created_at
+  FROM messages
+  WHERE channel_id = ?
+  ORDER BY created_at DESC
+  LIMIT ?
 `);
 
 export function persistMessage({
@@ -262,6 +302,31 @@ export function getPendingPgvectorRows(limit = 32) {
 
 export function markSynced(localId) {
   markPgvectorSynced.run(localId, Date.now());
+}
+
+export function findAssistantMessage(discordMessageId) {
+  return findAssistantByDiscordId.get(discordMessageId);
+}
+
+export function recordFeedback({ assistantMessageId, userId, channelId, sentiment, emoji = null }) {
+  insertFeedback.run(assistantMessageId, userId, channelId, sentiment, emoji, Date.now());
+}
+
+export function removeFeedback({ assistantMessageId, userId }) {
+  deleteFeedback.run(assistantMessageId, userId);
+}
+
+export function feedbackCounts(hours = 168) {
+  const since = Date.now() - hours * 3600 * 1000;
+  const rows = feedbackSummary.all(since);
+  const out = { up: 0, down: 0, window_hours: hours };
+  for (const r of rows) out[r.sentiment] = r.n;
+  return out;
+}
+
+export function loadChannelHistoryForSummary({ channelId, limit }) {
+  const desc = selectChannelHistoryForSummary.all(channelId, limit);
+  return desc.slice().reverse();
 }
 
 // Aggregate usage stats over a rolling window (default 24h) for the /usage

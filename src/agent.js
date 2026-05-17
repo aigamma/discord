@@ -248,5 +248,6 @@ export async function answer({
     latency,
     stopReason,
     model,
+    assistantMessageId,
   };
 }

@@ -36,6 +36,23 @@ const applied = new Set(
 
 const migrations = [
   {
+    name: '004_feedback',
+    sql: `
+      CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assistant_message_id INTEGER NOT NULL,
+        user_id TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        sentiment TEXT NOT NULL CHECK (sentiment IN ('up', 'down')),
+        emoji TEXT,
+        created_at INTEGER NOT NULL,
+        UNIQUE (assistant_message_id, user_id),
+        FOREIGN KEY (assistant_message_id) REFERENCES messages(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_feedback_sentiment ON feedback(sentiment, created_at DESC);
+    `,
+  },
+  {
     name: '003_pgvector_sync',
     sql: `
       -- Tracks which embedded rows have been synced to the Supabase pgvector
