@@ -1,0 +1,40 @@
+# Keep the container image lean and prevent secrets/state from being baked in.
+
+# Build outputs and dependencies (re-installed in the deps stage)
+node_modules
+dist
+.docker
+
+# Source-control + CI metadata
+.git
+.github
+.gitignore
+.gitattributes
+
+# Editor / OS
+.vscode
+.idea
+.editorconfig
+.nvmrc
+.DS_Store
+Thumbs.db
+
+# Local secrets and state
+.env
+.env.local
+.env.*.local
+data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Test + lint configs not needed at runtime
+test
+eslint.config.js
+
+# Docs (kept out of the image; the runtime doesn't read them)
+docs
+CHANGELOG.md
+SECURITY.md
+CLAUDE.md
