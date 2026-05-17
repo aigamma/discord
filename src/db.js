@@ -135,6 +135,20 @@ const migrations = [
         ON user_notes(user_id, created_at DESC);
     `,
   },
+  {
+    name: '006_channel_cutoffs',
+    sql: `
+      -- Per-channel forget cutoff. /forget sets context_cutoff_ms to the
+      -- current time. loadShortTermContext filters out messages older than
+      -- this timestamp from the short-term window so they no longer feed
+      -- into the model. Long-term semantic search is unaffected — the
+      -- messages stay in the messages table and remain searchable.
+      CREATE TABLE IF NOT EXISTS channel_cutoffs (
+        channel_id TEXT PRIMARY KEY,
+        context_cutoff_ms INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 for (const m of migrations) {

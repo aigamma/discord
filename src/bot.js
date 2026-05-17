@@ -201,9 +201,9 @@ async function handleSummarize(interaction) {
 }
 
 async function handleForget(interaction) {
-  const deleted = clearShortTermContext({ channelId: interaction.channelId });
+  clearShortTermContext({ channelId: interaction.channelId });
   await interaction.reply({
-    content: `Cleared ${deleted} message(s) from this channel's short-term context window.`,
+    content: 'Short-term context cleared. The bot will start the next reply fresh in this channel. Older messages stay searchable via `/search`.',
     flags: MessageFlags.Ephemeral,
   });
 }

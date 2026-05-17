@@ -54,8 +54,11 @@ const selectRecent = db.prepare(`
   LIMIT ?
 `);
 
-const deleteChannelSince = db.prepare(`
-  DELETE FROM messages WHERE channel_id = ? AND created_at >= ?
+const setChannelCutoff = db.prepare(`
+  INSERT OR REPLACE INTO channel_cutoffs (channel_id, context_cutoff_ms) VALUES (?, ?)
+`);
+const getChannelCutoff = db.prepare(`
+  SELECT context_cutoff_ms FROM channel_cutoffs WHERE channel_id = ?
 `);
 
 const countMessages = db.prepare('SELECT COUNT(*) AS n FROM messages');
@@ -264,10 +267,16 @@ export function persistTurn({
 // message gets a "[displayName]: " prefix so the model can attribute lines.
 // DM channels (one human author) and slash-command channels skip the
 // prefix to keep prompts clean.
+//
+// Honors per-channel /forget cutoffs: any cutoff later than the rolling
+// time-window cutoff overrides it, so a user who ran /forget recently
+// gets a clean conversation start.
 export function loadShortTermContext({ channelId, isMultiUser = false }) {
   const turns = config.memory.shortTermTurns;
   const windowMs = config.memory.shortTermMinutes * 60 * 1000;
-  const since = Date.now() - windowMs;
+  const rollingSince = Date.now() - windowMs;
+  const cutoffRow = getChannelCutoff.get(channelId);
+  const since = cutoffRow ? Math.max(rollingSince, cutoffRow.context_cutoff_ms) : rollingSince;
 
   const rowsDesc = selectRecent.all(channelId, since, turns);
   const rows = rowsDesc.slice().reverse();
@@ -283,13 +292,14 @@ export function loadShortTermContext({ channelId, isMultiUser = false }) {
   return messages;
 }
 
-// Clear the short-term window for a channel (used by the /forget slash
-// command). Returns count of deleted rows.
+// Advance the per-channel forget cutoff to the current time. The next
+// short-term context load filters out everything before this cutoff.
+// Non-destructive: messages stay in the table and are still searchable
+// via search_chat_history. Returns the cutoff timestamp that was set.
 export function clearShortTermContext({ channelId }) {
-  const windowMs = config.memory.shortTermMinutes * 60 * 1000;
-  const since = Date.now() - windowMs;
-  const result = deleteChannelSince.run(channelId, since);
-  return Number(result.changes);
+  const cutoff = Date.now();
+  setChannelCutoff.run(channelId, cutoff);
+  return cutoff;
 }
 
 export function totalMessageCount() {
