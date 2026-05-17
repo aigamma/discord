@@ -178,6 +178,21 @@ const migrations = [
         WHERE role = 'assistant' AND discord_message_id IS NOT NULL;
     `,
   },
+  {
+    name: '009_turns_user_time_index',
+    sql: `
+      -- checkBudget runs userSpendSince(userId, startOfUtcDay) on
+      -- every gated /ask, /summarize, and @mention when the budget
+      -- cap is enabled. Without (user_id, created_at) the query
+      -- either scans the table or uses idx_turns_channel_time
+      -- backwards. Either way it's O(n) on the turns count for a
+      -- query that should be O(log n) + the matching rows.
+      -- Composite covers the user filter plus the created_at range
+      -- predicate in one B-tree seek.
+      CREATE INDEX IF NOT EXISTS idx_turns_user_time
+        ON turns(user_id, created_at DESC);
+    `,
+  },
 ];
 
 for (const m of migrations) {
