@@ -40,6 +40,7 @@ import { feedbackReport, isOwner, rebuildEmbeddings, resetUserRateLimit, trigger
 import { setDiscordConnected } from './healthServer.js';
 import { db } from './db.js';
 import { chunk, MAX_DISCORD_MESSAGE } from './textChunks.js';
+import { inFlightCount, isShuttingDown } from './lifecycle.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -354,6 +355,17 @@ async function handleHealth(interaction) {
     integrity = `probe failed: ${err?.message || err}`;
   }
   embed.addFields({ name: 'SQLite integrity', value: integrity, inline: true });
+
+  // Lifecycle state — useful during a rolling restart to see whether the
+  // bot has any in-flight turns still draining.
+  const draining = isShuttingDown();
+  embed.addFields({
+    name: 'Lifecycle',
+    value: draining
+      ? `**SHUTTING DOWN** · in-flight: ${inFlightCount()}`
+      : `running · in-flight: ${inFlightCount()}`,
+    inline: true,
+  });
 
   await interaction.editReply({ embeds: [embed] });
 }
