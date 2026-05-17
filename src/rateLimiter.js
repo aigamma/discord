@@ -7,7 +7,18 @@
 // per minute — well under the threshold — and where the floor protects
 // against a runaway script or accidental loop.
 
-const REQUESTS_PER_WINDOW = parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE || '10', 10);
+// Tolerate garbage env values: an invalid RATE_LIMIT_REQUESTS_PER_MINUTE
+// would otherwise produce NaN and silently disable the limit (every
+// comparison against NaN is false). Fall back to 10 with a clear log.
+const rawLimit = process.env.RATE_LIMIT_REQUESTS_PER_MINUTE;
+const parsedLimit = Number(rawLimit);
+const REQUESTS_PER_WINDOW = (rawLimit !== undefined && rawLimit !== '' && Number.isFinite(parsedLimit) && parsedLimit > 0)
+  ? Math.floor(parsedLimit)
+  : 10;
+if (rawLimit !== undefined && rawLimit !== '' && REQUESTS_PER_WINDOW === 10 && rawLimit !== '10') {
+  console.error(`[rate-limit] RATE_LIMIT_REQUESTS_PER_MINUTE=${JSON.stringify(rawLimit)} is not a positive integer; using fallback 10`);
+}
+
 const WINDOW_MS = 60_000;
 
 const buckets = new Map(); // userId -> [timestamp, timestamp, ...]
