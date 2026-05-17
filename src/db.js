@@ -35,6 +35,18 @@ const applied = new Set(
 
 const migrations = [
   {
+    name: '003_pgvector_sync',
+    sql: `
+      -- Tracks which embedded rows have been synced to the Supabase pgvector
+      -- index. The embedder writes a row here after a successful upsert.
+      -- A missing row means "needs sync".
+      CREATE TABLE IF NOT EXISTS pgvector_sync (
+        local_id INTEGER PRIMARY KEY,
+        synced_at INTEGER NOT NULL
+      );
+    `,
+  },
+  {
     name: '001_messages',
     sql: `
       CREATE TABLE IF NOT EXISTS messages (

@@ -1,17 +1,14 @@
-// Semantic search across persisted chat history. The model calls this when
-// a current question references something said earlier — across days,
-// across channels, or beyond the short-term context window. Returns the
-// top-K most similar past user messages along with the assistant's reply
-// to each.
+// Semantic search across persisted chat history. Two backends, transparent
+// failover: pgvector HNSW via Supabase RPC (production path, scales),
+// SQLite full-scan cosine (fallback when Supabase is unreachable).
 //
-// Implementation: full-scan cosine similarity over every embedded user
-// message in SQLite. For a private community this stays well under a
-// million rows for years; if it ever grows beyond that, swap in HNSW or
-// migrate the embeddings to a vector database. The interface stays the
-// same.
+// The tool itself looks identical to the model in either mode. Operators
+// running a local-only deployment without Supabase still get search via the
+// SQLite path; the production deployment gets HNSW.
 
-import { embed, blobToVec, cosineSimilarity, isEnabled } from '../embeddings.js';
+import { embed, blobToVec, cosineSimilarity, isEnabled as voyageEnabled } from '../embeddings.js';
 import { iterEmbeddedUserMessages, getAssistantResponseFor } from '../memory.js';
+import { searchChatMemoryRpc, isEnabled as pgvectorEnabled } from '../pgvector.js';
 import { config } from '../config.js';
 
 export const spec = {
@@ -32,19 +29,61 @@ export const spec = {
       },
       channel_id: {
         type: 'string',
-        description: 'Optional Discord channel ID. If set, only past conversations from this channel are considered. Useful when the user clearly means "earlier in this room" rather than the whole server.',
+        description: 'Optional Discord channel ID. If set, only past conversations from this channel are considered.',
       },
     },
     required: ['query'],
   },
 };
 
-// voyage-3 similarities compress into a tight band; the floor stays low so
-// topical neighbors are surfaced and the model decides whether a hit at
-// e.g. 0.22 is informative or noise based on the question+answer content
-// it sees. Tune via SEARCH_MIN_SIMILARITY in .env.local if needed.
+async function searchPgvector(queryVec, k, minSim, channelId) {
+  const rows = await searchChatMemoryRpc({
+    queryEmbedding: queryVec,
+    matchCount: k,
+    similarityFloor: minSim,
+    channelId,
+  });
+  return rows.map((r) => ({
+    similarity: +Number(r.similarity).toFixed(3),
+    asked_by: r.username || r.user_id,
+    asked_at: r.created_at,
+    channel_id: r.channel_id,
+    question: r.content,
+    reply: r.reply_content || null,
+  }));
+}
+
+function searchSqliteFallback(queryVec, k, minSim, channelId) {
+  const heap = [];
+  let scanned = 0;
+  for (const row of iterEmbeddedUserMessages()) {
+    if (channelId && row.channel_id !== channelId) continue;
+    scanned++;
+    const vec = blobToVec(row.embedding);
+    const sim = cosineSimilarity(queryVec, vec);
+    if (sim < minSim) continue;
+    heap.push({ sim, row });
+  }
+  heap.sort((a, b) => b.sim - a.sim);
+  const top = heap.slice(0, k);
+  return {
+    hits: top.map(({ sim, row }) => {
+      const reply = getAssistantResponseFor(row.id);
+      return {
+        similarity: +sim.toFixed(3),
+        asked_by: row.username || row.user_id,
+        asked_at: new Date(row.created_at).toISOString(),
+        channel_id: row.channel_id,
+        question: row.content,
+        reply: reply?.content || null,
+      };
+    }),
+    scanned,
+  };
+}
+
 export async function execute({ query, limit = 5, channel_id = null } = {}) {
-  if (!isEnabled()) {
+  if (!voyageEnabled()) {
     return { error: 'Semantic search is not configured (Voyage embeddings disabled).' };
   }
   if (!query || typeof query !== 'string' || !query.trim()) {
@@ -55,36 +94,28 @@ export async function execute({ query, limit = 5, channel_id = null } = {}) {
 
   const [queryVec] = await embed([query.trim()], { inputType: 'query' });
 
-  const heap = [];
-  let scanned = 0;
-  for (const row of iterEmbeddedUserMessages()) {
-    if (channel_id && row.channel_id !== channel_id) continue;
-    scanned++;
-    const vec = blobToVec(row.embedding);
-    const sim = cosineSimilarity(queryVec, vec);
-    if (sim < minSim) continue;
-    heap.push({ sim, row });
+  // Prefer pgvector HNSW; fall back to SQLite full-scan on RPC failure or
+  // when Supabase is not configured.
+  if (pgvectorEnabled()) {
+    try {
+      const hits = await searchPgvector(queryVec, k, minSim, channel_id);
+      return {
+        query,
+        backend: 'pgvector_hnsw',
+        hits,
+        similarity_floor: minSim,
+      };
+    } catch (err) {
+      console.warn('[search] pgvector path failed, falling back to local:', err?.message || err);
+    }
   }
-  heap.sort((a, b) => b.sim - a.sim);
-  const top = heap.slice(0, k);
 
-  const hits = top.map(({ sim, row }) => {
-    const reply = getAssistantResponseFor(row.id);
-    return {
-      similarity: +sim.toFixed(3),
-      asked_by: row.username || row.user_id,
-      asked_at: new Date(row.created_at).toISOString(),
-      channel_id: row.channel_id,
-      question: row.content,
-      reply: reply?.content || null,
-    };
-  });
-
+  const local = searchSqliteFallback(queryVec, k, minSim, channel_id);
   return {
     query,
-    hits,
-    corpus_scanned: scanned,
-    above_floor: heap.length,
+    backend: 'sqlite_cosine',
+    hits: local.hits,
+    corpus_scanned: local.scanned,
     similarity_floor: minSim,
   };
 }

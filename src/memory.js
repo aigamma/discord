@@ -94,6 +94,29 @@ const selectAssistantForUser = db.prepare(`
   LIMIT 1
 `);
 
+const selectAssistantRowForUser = db.prepare(`
+  SELECT m.id AS local_id, m.content
+  FROM turns t
+  JOIN messages m ON m.id = t.assistant_message_id
+  WHERE t.user_message_id = ?
+  LIMIT 1
+`);
+
+const selectPendingPgvectorSync = db.prepare(`
+  SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.role,
+         m.content, m.embedding, m.embedding_model
+  FROM messages m
+  LEFT JOIN pgvector_sync s ON s.local_id = m.id
+  WHERE m.embedding IS NOT NULL
+    AND s.local_id IS NULL
+  ORDER BY m.id ASC
+  LIMIT ?
+`);
+
+const markPgvectorSynced = db.prepare(`
+  INSERT OR REPLACE INTO pgvector_sync (local_id, synced_at) VALUES (?, ?)
+`);
+
 export function persistMessage({
   channelId,
   guildId = null,
@@ -227,6 +250,18 @@ export function* iterEmbeddedUserMessages() {
 
 export function getAssistantResponseFor(userMessageId) {
   return selectAssistantForUser.get(userMessageId);
+}
+
+export function getAssistantRowFor(userMessageId) {
+  return selectAssistantRowForUser.get(userMessageId);
+}
+
+export function getPendingPgvectorRows(limit = 32) {
+  return selectPendingPgvectorSync.all(limit);
+}
+
+export function markSynced(localId) {
+  markPgvectorSynced.run(localId, Date.now());
 }
 
 // Aggregate usage stats over a rolling window (default 24h) for the /usage
