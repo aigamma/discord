@@ -548,7 +548,7 @@ async function handleAdmin(interaction) {
       const hours = interaction.options.getInteger('hours') || 168;
       const r = feedbackReport(hours);
       const header = `**Feedback in last ${hours}h** (${r.count} entries)\n`;
-      const budget = 1900 - header.length; // leave headroom under the 2000-char limit
+      const budget = MAX_DISCORD_MESSAGE - header.length - 100; // headroom for the trailer
       let body = '';
       let included = 0;
       for (const f of r.rows.slice(0, 15)) {
