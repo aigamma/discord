@@ -31,7 +31,18 @@ const MAX_TOOL_ROUNDS = 8;
 // compounding backoff. Our wrapper also covers the mid-stream
 // finalMessage() failure path that SDK retries don't reach, so
 // owning the retry policy here is the natural choice.
-const client = new Anthropic({ apiKey: config.anthropic.apiKey, maxRetries: 0 });
+//
+// timeout: 4 minutes per attempt. SDK default is 10 minutes, which
+// stacked with our 3 retries (+12s backoffs) can exceed Discord's
+// 15-minute deferReply window. 4min × 3 attempts + ~12s backoffs =
+// ~12.2 min worst case — comfortably under the Discord limit while
+// still allowing a full max_tokens response (~4096 tokens at ~50
+// tok/sec = ~82s) plus normal latency overhead.
+const client = new Anthropic({
+  apiKey: config.anthropic.apiKey,
+  maxRetries: 0,
+  timeout: 240_000,
+});
 
 // Anthropic's server-side tools sit alongside the bot's own tools. The model
 // invokes them inside a single API call; results come back as content blocks
