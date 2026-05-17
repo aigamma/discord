@@ -36,48 +36,6 @@ const applied = new Set(
 
 const migrations = [
   {
-    name: '005_user_notes',
-    sql: `
-      CREATE TABLE IF NOT EXISTS user_notes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_user_notes_user
-        ON user_notes(user_id, created_at DESC);
-    `,
-  },
-  {
-    name: '004_feedback',
-    sql: `
-      CREATE TABLE IF NOT EXISTS feedback (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        assistant_message_id INTEGER NOT NULL,
-        user_id TEXT NOT NULL,
-        channel_id TEXT NOT NULL,
-        sentiment TEXT NOT NULL CHECK (sentiment IN ('up', 'down')),
-        emoji TEXT,
-        created_at INTEGER NOT NULL,
-        UNIQUE (assistant_message_id, user_id),
-        FOREIGN KEY (assistant_message_id) REFERENCES messages(id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_feedback_sentiment ON feedback(sentiment, created_at DESC);
-    `,
-  },
-  {
-    name: '003_pgvector_sync',
-    sql: `
-      -- Tracks which embedded rows have been synced to the Supabase pgvector
-      -- index. The embedder writes a row here after a successful upsert.
-      -- A missing row means "needs sync".
-      CREATE TABLE IF NOT EXISTS pgvector_sync (
-        local_id INTEGER PRIMARY KEY,
-        synced_at INTEGER NOT NULL
-      );
-    `,
-  },
-  {
     name: '001_messages',
     sql: `
       CREATE TABLE IF NOT EXISTS messages (
@@ -133,6 +91,48 @@ const migrations = [
         FOREIGN KEY (assistant_message_id) REFERENCES messages(id)
       );
       CREATE INDEX IF NOT EXISTS idx_turns_channel_time ON turns(channel_id, created_at DESC);
+    `,
+  },
+  {
+    name: '003_pgvector_sync',
+    sql: `
+      -- Tracks which embedded rows have been synced to the Supabase pgvector
+      -- index. The embedder writes a row here after a successful upsert.
+      -- A missing row means "needs sync".
+      CREATE TABLE IF NOT EXISTS pgvector_sync (
+        local_id INTEGER PRIMARY KEY,
+        synced_at INTEGER NOT NULL
+      );
+    `,
+  },
+  {
+    name: '004_feedback',
+    sql: `
+      CREATE TABLE IF NOT EXISTS feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assistant_message_id INTEGER NOT NULL,
+        user_id TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        sentiment TEXT NOT NULL CHECK (sentiment IN ('up', 'down')),
+        emoji TEXT,
+        created_at INTEGER NOT NULL,
+        UNIQUE (assistant_message_id, user_id),
+        FOREIGN KEY (assistant_message_id) REFERENCES messages(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_feedback_sentiment ON feedback(sentiment, created_at DESC);
+    `,
+  },
+  {
+    name: '005_user_notes',
+    sql: `
+      CREATE TABLE IF NOT EXISTS user_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_notes_user
+        ON user_notes(user_id, created_at DESC);
     `,
   },
 ];
