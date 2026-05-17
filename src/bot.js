@@ -539,9 +539,12 @@ async function handleAdmin(interaction) {
         body += line;
         included++;
       }
-      const truncatedNote = included < Math.min(r.rows.length, 15)
-        ? `\n_(${r.rows.length - included} more not shown)_`
-        : '';
+      // Two truncation paths: (1) the 15-row display cap above r.rows,
+      // (2) the 2000-char Discord budget breaking the loop early. Either
+      // way, "N more not shown" should appear when fewer rows landed in
+      // the embed than the underlying fetch produced.
+      const omitted = r.rows.length - included;
+      const truncatedNote = omitted > 0 ? `\n_(${omitted} more not shown)_` : '';
       await interaction.editReply({
         content: header + (body || '_(none)_') + truncatedNote,
         allowedMentions: SAFE_ALLOWED_MENTIONS,
