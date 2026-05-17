@@ -41,6 +41,10 @@ const commands = [
         )
     )
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName('health')
+    .setDescription('Show bot health: DB, embedder queue, pgvector reachability, attached shards')
+    .toJSON(),
 ];
 
 const rest = new REST({ version: '10' }).setToken(config.discord.token);

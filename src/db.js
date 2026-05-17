@@ -12,6 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { config } from './config.js';
+import { logger } from './logger.js';
 
 const absPath = resolve(config.memory.dbPath);
 mkdirSync(dirname(absPath), { recursive: true });
@@ -116,10 +117,10 @@ for (const m of migrations) {
       Date.now()
     );
     db.exec('COMMIT');
-    console.log(`[db] migration ${m.name} applied`);
+    logger.info('sqlite migration applied', { name: m.name });
   } catch (err) {
     db.exec('ROLLBACK');
-    throw new Error(`[db] migration ${m.name} failed: ${err.message}`);
+    throw new Error(`sqlite migration ${m.name} failed: ${err.message}`);
   }
 }
 

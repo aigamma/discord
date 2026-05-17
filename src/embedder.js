@@ -11,6 +11,7 @@
 // cosine when pgvector is unreachable so search never goes hard down.
 
 import { embed, vecToBlob, blobToVec, isEnabled as voyageEnabled } from './embeddings.js';
+import { logger } from './logger.js';
 import { config } from './config.js';
 import {
   getPendingEmbeddings,
@@ -86,13 +87,13 @@ async function tick() {
     await embedTick();
   } catch (err) {
     failures++;
-    console.error('[embedder] embed tick failed:', err?.message || err);
+    logger.error('embedder embed tick failed', { err });
   }
   try {
     await pgvectorTick();
   } catch (err) {
     failures++;
-    console.error('[embedder] pgvector sync failed:', err?.message || err);
+    logger.error('embedder pgvector sync failed', { err });
   } finally {
     running = false;
   }
@@ -100,13 +101,17 @@ async function tick() {
 
 export function startBackgroundEmbedder() {
   if (!voyageEnabled()) {
-    console.log('[embedder] Voyage not configured; skipping background embedding');
+    logger.info('embedder skipped: Voyage not configured');
     return null;
   }
   if (timer) return timer;
 
   const pending = pendingEmbeddingsCount();
-  console.log(`[embedder] starting; ${pending} pending; pgvector ${pgvectorEnabled() ? 'enabled' : 'disabled'}; tick every ${INTERVAL_MS / 1000}s`);
+  logger.info('embedder started', {
+    pending,
+    pgvector_enabled: pgvectorEnabled(),
+    interval_seconds: INTERVAL_MS / 1000,
+  });
 
   timer = setInterval(() => { tick().catch(() => {}); }, INTERVAL_MS);
   setTimeout(() => { tick().catch(() => {}); }, 1000);

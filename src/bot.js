@@ -13,9 +13,13 @@
 import { ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { answer } from './agent.js';
 import { config } from './config.js';
-import { clearShortTermContext, usageSummary } from './memory.js';
+import { clearShortTermContext, totalMessageCount, usageSummary } from './memory.js';
 import { execute as searchHistory } from './tools/searchChatHistory.js';
 import { check as checkRateLimit } from './rateLimiter.js';
+import { isReady as duckdbReady, getAttachedShards } from './duckdb.js';
+import { getEmbedderStats } from './embedder.js';
+import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector.js';
+import { logger } from './logger.js';
 
 const MAX_DISCORD_MESSAGE = 2000;
 
@@ -86,7 +90,7 @@ async function handleAsk(interaction) {
       await interaction.followUp(parts[i]);
     }
   } catch (err) {
-    console.error('ask_command_failed', err);
+    logger.error('ask command failed', { err, user_id: interaction.user.id });
     await interaction.editReply(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
   }
 }
@@ -165,12 +169,53 @@ async function handleSearch(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+async function handleHealth(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const t0 = Date.now();
+  const pgReachable = pgvectorEnabled() ? await checkPgvectorReachable() : null;
+  const pgLatency = Date.now() - t0;
+  const embedderStats = getEmbedderStats();
+
+  const shards = duckdbReady() ? getAttachedShards() : [];
+  const shardSummary = shards.length
+    ? shards.map((s) => `\`${s.name}\` (${(s.sizeBytes / 1024 / 1024).toFixed(1)} MB)`).join(', ')
+    : 'none attached';
+
+  const mem = process.memoryUsage();
+
+  const embed = new EmbedBuilder()
+    .setTitle('Bot health')
+    .setColor(0x2ecc71)
+    .addFields(
+      { name: 'Process', value: `pid ${process.pid} · uptime ${Math.round(process.uptime())}s · rss ${(mem.rss / 1024 / 1024).toFixed(0)} MB`, inline: false },
+      { name: 'Model', value: config.anthropic.model, inline: true },
+      { name: 'Total messages', value: String(totalMessageCount()), inline: true },
+      { name: 'Embed pending', value: String(embedderStats.pending_embed), inline: true },
+      { name: 'Embedded total', value: String(embedderStats.embedded_total), inline: true },
+      { name: 'Synced to pgvector', value: String(embedderStats.synced_total), inline: true },
+      { name: 'Embedder failures', value: String(embedderStats.failures), inline: true },
+      {
+        name: 'Supabase pgvector',
+        value: pgvectorEnabled()
+          ? (pgReachable ? `reachable (${pgLatency}ms)` : 'UNREACHABLE')
+          : 'disabled',
+        inline: true,
+      },
+      { name: 'Voyage embeddings', value: config.voyage.enabled ? 'enabled' : 'disabled', inline: true },
+      { name: 'Web search', value: config.anthropic.webSearchEnabled ? 'enabled' : 'disabled', inline: true },
+      { name: 'DuckDB shards', value: shardSummary, inline: false },
+    );
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
 async function handleSlashCommand(interaction) {
   switch (interaction.commandName) {
     case 'ask':    return handleAsk(interaction);
     case 'forget': return handleForget(interaction);
     case 'usage':  return handleUsage(interaction);
     case 'search': return handleSearch(interaction);
+    case 'health': return handleHealth(interaction);
   }
 }
 
@@ -209,7 +254,7 @@ async function handleMention(message, clientId) {
       await message.channel.send(parts[i]);
     }
   } catch (err) {
-    console.error('mention_handler_failed', err);
+    logger.error('mention handler failed', { err, user_id: message.author.id });
     await message.reply(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
   }
 }
@@ -226,13 +271,20 @@ export function buildClient() {
   });
 
   client.once(Events.ClientReady, (c) => {
-    console.log(`Logged in as ${c.user.tag} (id ${c.user.id})`);
-    console.log(`Model: ${config.anthropic.model} (max ${config.anthropic.maxTokens} tokens/turn)`);
-    console.log(`Supabase tools: ${config.supabase.enabled ? 'enabled' : 'disabled'}`);
-    console.log(`Voyage embeddings: ${config.voyage.enabled ? 'enabled' : 'disabled'}`);
-    console.log(`Web search: ${config.anthropic.webSearchEnabled ? 'enabled' : 'disabled'}`);
-    console.log(`Web fetch: ${config.anthropic.webFetchEnabled ? 'enabled' : 'disabled'}`);
-    console.log(`Short-term context: last ${config.memory.shortTermTurns} turns within ${config.memory.shortTermMinutes}m`);
+    logger.info('discord ready', {
+      bot_tag: c.user.tag,
+      bot_id: c.user.id,
+      model: config.anthropic.model,
+      max_tokens: config.anthropic.maxTokens,
+      supabase: config.supabase.enabled,
+      voyage: config.voyage.enabled,
+      pgvector: pgvectorEnabled(),
+      duckdb: duckdbReady(),
+      web_search: config.anthropic.webSearchEnabled,
+      web_fetch: config.anthropic.webFetchEnabled,
+      short_term_turns: config.memory.shortTermTurns,
+      short_term_minutes: config.memory.shortTermMinutes,
+    });
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {

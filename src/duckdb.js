@@ -13,6 +13,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DuckDBInstance } from '@duckdb/node-api';
+import { logger } from './logger.js';
 
 const DEFAULT_SHARD_ROOT = 'C:/aigamma-backtester/data';
 const SHARD_FILES = {
@@ -62,7 +63,7 @@ function probeShards() {
 export async function initDuckDB() {
   const found = probeShards();
   if (found.length === 0) {
-    console.log(`[duckdb] no shards found at ${shardRoot()}; query_duckdb tool will be unavailable`);
+    logger.info('duckdb no shards found; query_duckdb tool unavailable', { root: shardRoot() });
     return false;
   }
 
@@ -83,11 +84,11 @@ export async function initDuckDB() {
       );
       attached.push(shard);
     }
-    console.log(`[duckdb] attached ${attached.length} shard(s): ${attached.map((s) => s.name).join(', ')}`);
+    logger.info('duckdb shards attached', { count: attached.length, names: attached.map((s) => s.name) });
     return true;
   } catch (err) {
     initError = err?.message || String(err);
-    console.error('[duckdb] init failed:', initError);
+    logger.error('duckdb init failed', { err, init_error: initError });
     instance = null;
     connection = null;
     return false;

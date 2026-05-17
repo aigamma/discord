@@ -106,7 +106,8 @@ export async function execute({ query, limit = 5, channel_id = null } = {}) {
         similarity_floor: minSim,
       };
     } catch (err) {
-      console.warn('[search] pgvector path failed, falling back to local:', err?.message || err);
+      const { logger } = await import('../logger.js');
+      logger.warn('search pgvector failed, falling back to sqlite', { err });
     }
   }
 

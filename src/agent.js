@@ -18,6 +18,8 @@ import { buildSystemPrompt } from './prompt.js';
 import { getToolSpecs, executeTool } from './tools/index.js';
 import { loadShortTermContext, persistMessage, persistTurn } from './memory.js';
 import { priceUsage } from './pricing.js';
+import { beginWork, isShuttingDown } from './lifecycle.js';
+import { logger } from './logger.js';
 
 const MAX_TOOL_ROUNDS = 8;
 const RETRY_ATTEMPTS = 3;
@@ -50,7 +52,7 @@ async function withRetry(fn) {
       const transient = status === 429 || status === 500 || status === 502 || status === 503 || status === 529;
       if (!transient || attempt === RETRY_ATTEMPTS - 1) throw err;
       const wait = RETRY_BACKOFF_MS[attempt] || 5000;
-      console.warn(`[agent] transient error ${status}; retrying in ${wait}ms`);
+      logger.warn('anthropic transient error; retrying', { status, attempt: attempt + 1, wait_ms: wait });
       await new Promise((r) => setTimeout(r, wait));
     }
   }
@@ -102,6 +104,10 @@ export async function answer({
   userMessage,
   modelOverride = null,
 }) {
+  if (isShuttingDown()) {
+    throw new Error('Bot is shutting down; new requests refused.');
+  }
+  const releaseWork = beginWork();
   const t0 = Date.now();
   const model = modelOverride || config.anthropic.model;
   const toolSpecs = getToolSpecs();
@@ -180,6 +186,7 @@ export async function answer({
       latencyMs: latency,
       error: err?.message || String(err),
     });
+    releaseWork();
     throw err;
   }
 
@@ -222,6 +229,17 @@ export async function answer({
     error: null,
   });
 
+  logger.info('turn completed', {
+    channel_id: channelId,
+    user_id: userId,
+    model,
+    stop_reason: stopReason,
+    tool_rounds: toolRounds,
+    cost_usd: cost,
+    latency_ms: latency,
+  });
+
+  releaseWork();
   return {
     text: finalText,
     toolUses: allToolUses,
