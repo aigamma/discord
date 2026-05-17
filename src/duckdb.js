@@ -151,11 +151,30 @@ export function getInitError() {
   return initError;
 }
 
+// @duckdb/node-api connections are async-await compatible for sequential
+// use but NOT for two concurrent runAndReadAll calls on the same
+// connection. The agent loop executes tool_uses through Promise.all, so
+// if a single round produced two query_duckdb tool blocks they'd race
+// against the connection's internal state. Serialize all runSelect calls
+// behind a FIFO mutex: each waiter chains its work onto the previous
+// promise so the connection sees exactly one runAndReadAll at a time.
+// Rare in practice — the model usually chains query_duckdb sequentially
+// — but the cost of getting it wrong is silent data corruption.
+let queryMutex = Promise.resolve();
+
 export async function runSelect(sql) {
   if (!isReady()) throw new Error('DuckDB shards are not loaded.');
   if (!isReadOnlySelect(sql)) {
     throw new Error('Query rejected: only a single SELECT or WITH statement is allowed.');
   }
+
+  // Chain onto the existing queue. The catch(() => {}) prevents one
+  // waiter's failure from cascading into a rejected chain that fails
+  // every subsequent call.
+  const previous = queryMutex.catch(() => {});
+  let release;
+  queryMutex = new Promise((r) => { release = r; });
+  await previous;
 
   // DuckDB schedules a soft interrupt at the next statement boundary when
   // setInterrupt() is called; for our single-statement queries this manifests
@@ -176,6 +195,7 @@ export async function runSelect(sql) {
     };
   } finally {
     clearTimeout(t);
+    release();
   }
 }
 
