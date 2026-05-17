@@ -8,7 +8,18 @@ import { startBackgroundEmbedder, stopBackgroundEmbedder } from './embedder.js';
 import { initDuckDB, closeDuckDB } from './duckdb.js';
 import { installLifecycle } from './lifecycle.js';
 import { startHealthServer, stopHealthServer } from './healthServer.js';
+import { isModelPriced } from './pricing.js';
 import { logger } from './logger.js';
+
+// Warn if the configured model is unknown to pricing.js. Without an
+// entry in PRICING, every turn's cost_usd records as null, the daily
+// budget cap never triggers, and /usage shows $0 cost forever — a
+// silent failure that hides accumulating spend.
+if (!isModelPriced(config.anthropic.model)) {
+  logger.warn('configured Anthropic model has no entry in pricing.js; cost tracking disabled until updated', {
+    model: config.anthropic.model,
+  });
+}
 
 await initDuckDB();
 const client = buildClient();

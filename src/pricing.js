@@ -17,6 +17,10 @@ const SERVER_TOOL_PRICING = {
   web_search_requests: 10 / 1000,
 };
 
+export function isModelPriced(model) {
+  return Object.prototype.hasOwnProperty.call(PRICING, model);
+}
+
 export function priceUsage(model, usage) {
   const p = PRICING[model];
   if (!p || !usage) return null;

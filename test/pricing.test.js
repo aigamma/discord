@@ -1,6 +1,19 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { priceUsage } from '../src/pricing.js';
+import { priceUsage, isModelPriced } from '../src/pricing.js';
+
+test('pricing: isModelPriced returns true for shipped models', () => {
+  assert.equal(isModelPriced('claude-sonnet-4-6'), true);
+  assert.equal(isModelPriced('claude-opus-4-7'), true);
+  assert.equal(isModelPriced('claude-haiku-4-5-20251001'), true);
+});
+
+test('pricing: isModelPriced returns false for unknown models', () => {
+  assert.equal(isModelPriced('claude-sonnet-4-7'), false);
+  assert.equal(isModelPriced('gpt-4'), false);
+  assert.equal(isModelPriced(''), false);
+  assert.equal(isModelPriced(undefined), false);
+});
 
 test('pricing: sonnet 4.6 basic input + output', () => {
   const cost = priceUsage('claude-sonnet-4-6', {
