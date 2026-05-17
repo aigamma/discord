@@ -694,7 +694,10 @@ async function handleMention(message, clientId) {
   } catch (err) {
     reporter.cancel();
     logger.error('mention handler failed', { err, user_id: message.author.id });
-    await sent.edit(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
+    await sent.edit({
+      content: `Something went wrong: \`${err?.message || err}\``,
+      allowedMentions: SAFE_ALLOWED_MENTIONS,
+    }).catch(() => {});
   }
 }
 
