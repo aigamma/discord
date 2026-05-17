@@ -5,6 +5,25 @@ first within each section. Versioning is incremental; pre-1.0 only.
 
 ## Unreleased
 
+### Performance
+- Migration 007 adds indexes on turns(user_message_id) and
+  turns(assistant_message_id). Every LEFT JOIN turns ... ON
+  t.user_message_id = m.id (embedder, recentFeedback, postmortem) was
+  a full scan of turns without them — invisible on a fresh store,
+  measurable on a long-lived one.
+- Migration 008 adds a partial index on messages(discord_message_id)
+  WHERE role='assistant'. Every reaction event used to full-scan the
+  messages table; now it's a point lookup.
+- Embedder's pgvector sync collapses to one SQL query per batch (was
+  1 + N for N rows in the batch). The paired assistant reply now
+  comes back from the same LEFT JOIN turns→messages select rather
+  than a per-row getAssistantRowFor call.
+- setEmbedding writes and markSynced inserts now batch into a single
+  SQLite transaction per tick (was N separate statements).
+- search_chat_history SQLite fallback pushes channel_id / guild_id
+  into the SQL filter so a channel-restricted search no longer
+  iterates the entire embedded corpus to drop most of it.
+
 ### Added
 - `/forget-note number:<n>` removes a single saved note by its 1-based
   number from `/notes` (the existing `/forget-notes` clears all). Wires
