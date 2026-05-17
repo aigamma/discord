@@ -215,12 +215,13 @@ Optional: `SUPABASE_URL`+`SUPABASE_KEY`, `VOYAGE_API_KEY`,
 
 ## Tests
 
-`test/*.test.js` via `node --test` (no external runner). 89 tests
-covering pricing math, rate limiter semantics, cosine + blob roundtrip,
-prompt composition, SQL guard, progress reporter, budget, memory
-persistence, tool cache, user notes, backup, and Supabase retry
-predicates. No live API calls; SQLite-touching tests use per-process tmp
-stores. Runs in ~3s. `npm test`.
+`test/*.test.js` via `node --test` (no external runner). Covers pricing
+math, rate limiter semantics, cosine + blob roundtrip, prompt
+composition, SQL guard, progress reporter, budget, memory persistence,
+tool cache, user notes, backup, Supabase retry predicates,
+realizedCorrelations limit/NaN/null handling, and ivPercentile null-
+tail handling. No live API calls; SQLite-touching tests use per-process
+tmp stores. Runs in ~3s. Live count: `npm test`.
 
 `.github/workflows/test.yml` runs the suite on every push to main and
 every PR, plus a `node --check` pass over every source module.
