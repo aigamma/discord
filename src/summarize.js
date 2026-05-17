@@ -23,12 +23,21 @@ Skip pleasantries, greetings, and any chitchat that did not contain market or st
 Cap at six paragraphs total. End with a declarative sentence. Never close with a question or a hook.
 No em-dashes. No metaphors or analogies. No emojis.`;
 
+// Per-message cap. Messages larger than this get truncated with an
+// elision marker. Prevents a pathological paste from blowing up the
+// summarization request's context. Median chat message is well under
+// 1KB; the 2KB cap retains substance and bounds total transcript size.
+const MAX_LINE_CHARS = 2000;
+
 function formatTranscript(rows) {
   const lines = [];
   for (const r of rows) {
     const t = new Date(r.created_at).toISOString().slice(11, 16);
     const speaker = r.role === 'assistant' ? 'bot' : (r.username || 'user');
-    lines.push(`[${t}] ${speaker}: ${r.content}`);
+    const content = r.content.length > MAX_LINE_CHARS
+      ? r.content.slice(0, MAX_LINE_CHARS) + ' …[truncated]'
+      : r.content;
+    lines.push(`[${t}] ${speaker}: ${content}`);
   }
   return lines.join('\n');
 }
