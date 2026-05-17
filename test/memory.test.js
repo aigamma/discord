@@ -185,6 +185,37 @@ test('memory: setEmbeddingBulk handles empty array as no-op', async () => {
   markSyncedBulk(null);
 });
 
+test('memory: pendingPgvectorCount matches the LEFT JOIN predicate', async () => {
+  // Verifies the count matches the row set the batch query will see:
+  // messages with a local embedding AND no pgvector_sync row.
+  const { setEmbeddingBulk, markSyncedBulk, pendingPgvectorCount } =
+    await import('../src/memory.js');
+  const before = pendingPgvectorCount();
+
+  const u1 = persistMessage({ channelId: ch, userId: 'pp-u', role: 'user', content: 'pp one' });
+  const u2 = persistMessage({ channelId: ch, userId: 'pp-u', role: 'user', content: 'pp two' });
+  // u1 + u2 don't have embeddings yet — they're pending-embed, not
+  // pending-sync. Count must NOT change.
+  assert.equal(pendingPgvectorCount(), before,
+    'embed-pending rows should not count as sync-pending');
+
+  const blob = Buffer.alloc(1024 * 4);
+  setEmbeddingBulk([
+    { id: u1, blob, model: 'voyage-3' },
+    { id: u2, blob, model: 'voyage-3' },
+  ]);
+  // Both rows now embedded and not synced.
+  assert.equal(pendingPgvectorCount(), before + 2,
+    'two newly-embedded rows should add 2 to the sync-pending count');
+
+  markSyncedBulk([u1]);
+  // u1 synced, u2 still pending.
+  assert.equal(pendingPgvectorCount(), before + 1);
+
+  markSyncedBulk([u2]);
+  assert.equal(pendingPgvectorCount(), before, 'all caught up returns to baseline');
+});
+
 test('memory: findAssistantMessage by discord_message_id roundtrip', () => {
   const aMid = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'attached' });
   attachDiscordMessageId(aMid, 'discord-msg-999');
