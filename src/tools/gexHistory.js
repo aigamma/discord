@@ -14,7 +14,7 @@ export const spec = {
     properties: {
       lookback_days: {
         type: 'integer',
-        description: 'Calendar days of history to return. Default 60. Clamped to [1, 1260] (five years).',
+        description: 'Calendar days of history to return. Default 60. Clamped to [10, 1260] (five years).',
         default: 60,
       },
     },
@@ -23,7 +23,11 @@ export const spec = {
 };
 
 export async function execute({ lookback_days = 60 } = {}) {
-  const days = Math.min(Math.max(parseInt(lookback_days, 10) || 60, 1), 1260);
+  // Floor at 10 days: a percentile rank computed against a sample of
+  // 1 is always 0 (since `v < itself` is false for every row), which
+  // would falsely tell the operator 'this is the lowest gamma reading
+  // ever' on every query. 10 days is a small but meaningful baseline.
+  const days = Math.min(Math.max(parseInt(lookback_days, 10) || 60, 10), 1260);
   const fromDate = new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 10);
 
   const rows = await selectRows('daily_gex_stats', {
