@@ -137,7 +137,7 @@ for (const m of migrations) {
     logger.info('sqlite migration applied', { name: m.name });
   } catch (err) {
     db.exec('ROLLBACK');
-    throw new Error(`sqlite migration ${m.name} failed: ${err.message}`);
+    throw new Error(`sqlite migration ${m.name} failed: ${err.message}`, { cause: err });
   }
 }
 

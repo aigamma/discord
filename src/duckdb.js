@@ -28,7 +28,7 @@ const MAX_ROWS_RETURNED = 1000;
 
 let instance = null;
 let connection = null;
-let attached = [];
+const attached = [];
 let initError = null;
 
 const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|create|alter|attach|detach|pragma|copy|export|import|truncate|grant|revoke|set)\b/i;

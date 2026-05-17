@@ -25,6 +25,9 @@ jobs:
       - name: Run test suite
         run: npm test
 
+      - name: Lint
+        run: npm run lint
+
       - name: Parse-check every source module
         run: |
           for f in src/**/*.js src/*.js scripts/*.js; do

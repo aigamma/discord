@@ -26,7 +26,7 @@ const {
 const ch = 'mem-test-' + Date.now();
 
 test('memory: persist + read short-term context preserves chronological order', () => {
-  const u1 = persistMessage({ channelId: ch, userId: 'A', username: 'Blue', role: 'user', content: 'first' });
+  persistMessage({ channelId: ch, userId: 'A', username: 'Blue', role: 'user', content: 'first' });
   persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'reply-to-first' });
   persistMessage({ channelId: ch, userId: 'B', username: 'Alpha', role: 'user', content: 'second' });
   persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'reply-to-second' });

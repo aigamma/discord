@@ -7,8 +7,6 @@
 // per minute — well under the threshold — and where the floor protects
 // against a runaway script or accidental loop.
 
-import { config } from './config.js';
-
 const REQUESTS_PER_WINDOW = parseInt(process.env.RATE_LIMIT_REQUESTS_PER_MINUTE || '10', 10);
 const WINDOW_MS = 60_000;
 

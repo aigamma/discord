@@ -7,7 +7,7 @@
 // SQLite path; the production deployment gets HNSW.
 
 import { embed, blobToVec, cosineSimilarity, isEnabled as voyageEnabled } from '../embeddings.js';
-import { iterEmbeddedUserMessages, getAssistantResponseFor, findAssistantMessage } from '../memory.js';
+import { iterEmbeddedUserMessages, getAssistantResponseFor } from '../memory.js';
 import { searchChatMemoryRpc, isEnabled as pgvectorEnabled } from '../pgvector.js';
 import { config } from '../config.js';
 import { db } from '../db.js';

@@ -8,7 +8,6 @@
 // a row, only delay the index update.
 
 import { config } from './config.js';
-import { blobToVec } from './embeddings.js';
 
 const TIMEOUT_MS = 8000;
 

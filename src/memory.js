@@ -419,11 +419,11 @@ const selectToolUseCounts = db.prepare(`
 
 export function usageSummary(hours = 24) {
   const since = Date.now() - hours * 3600 * 1000;
-  let byTool = [];
+  // SQLite versions without json_each will throw; treat as zero tool calls.
+  let byTool;
   try {
     byTool = selectToolUseCounts.all(since);
   } catch {
-    // SQLite versions without json_each will just return empty. Not fatal.
     byTool = [];
   }
   return {
