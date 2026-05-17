@@ -76,9 +76,19 @@ function probeShards() {
 }
 
 export async function initDuckDB() {
+  const root = shardRoot();
   const found = probeShards();
   if (found.length === 0) {
-    logger.info('duckdb no shards found; query_duckdb tool unavailable', { root: shardRoot() });
+    // Distinguish 'directory not present' (typo'd path / unset env var)
+    // from 'directory present but empty' (puller hasn't produced shards
+    // yet). The first is an operator misconfiguration the second is a
+    // legitimate startup state.
+    const rootExists = existsSync(root);
+    logger.info('duckdb no shards found; query_duckdb tool unavailable', {
+      root,
+      root_exists: rootExists,
+      hint: rootExists ? 'puller has not produced shards yet' : 'BACKTESTER_DATA_DIR points to a path that does not exist',
+    });
     return false;
   }
 
