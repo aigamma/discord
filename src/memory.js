@@ -386,6 +386,20 @@ export function getPendingPgvectorRows(limit = 32) {
   return selectPendingPgvectorSync.all(limit);
 }
 
+// Count rows that have a local embedding but no pgvector_sync row.
+// Operators need this on /health: a stuck sync queue (Supabase down,
+// auth expired, schema drift) wouldn't otherwise surface until search
+// got noticeably stale. Counts the same predicate the batch query uses.
+const countPendingPgvectorSync = db.prepare(`
+  SELECT COUNT(*) AS n
+  FROM messages m
+  LEFT JOIN pgvector_sync s ON s.local_id = m.id
+  WHERE m.embedding IS NOT NULL AND s.local_id IS NULL
+`);
+export function pendingPgvectorCount() {
+  return countPendingPgvectorSync.get().n;
+}
+
 // Bulk-only by design. The embedder always marks the rows it just
 // successfully upserted to pgvector in a single batch; a per-row helper
 // would be dead code.

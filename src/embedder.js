@@ -16,6 +16,7 @@ import { config } from './config.js';
 import {
   getPendingEmbeddings,
   pendingEmbeddingsCount,
+  pendingPgvectorCount,
   setEmbeddingBulk,
   getPendingPgvectorRows,
   markSyncedBulk,
@@ -177,6 +178,12 @@ export function getEmbedderStats() {
     // actual diagnostic signal.
     failures: embedFailures + syncFailures,
     pending_embed: pendingEmbeddingsCount(),
+    // Sync queue grows when Supabase pgvector is unreachable but local
+    // embedding is fresh. /health surfaces it alongside the embed
+    // queue so a long-running sync outage doesn't hide in logs.
+    pending_sync: (() => {
+      try { return pendingPgvectorCount(); } catch { return null; }
+    })(),
     // Whether a tick is in flight right now. Helpful on /health to see
     // 'embedder is working' vs 'embedder is idle waiting for the next
     // 10s tick' — both are valid states but only one needs attention

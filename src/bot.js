@@ -362,6 +362,11 @@ async function handleHealth(interaction) {
       { name: 'Model', value: config.anthropic.model, inline: true },
       { name: 'Total messages', value: String(totalMessageCount()), inline: true },
       { name: 'Embed pending', value: String(embedderStats.pending_embed), inline: true },
+      {
+        name: 'Sync pending',
+        value: String(embedderStats.pending_sync ?? 'n/a'),
+        inline: true,
+      },
       { name: 'Embedded total', value: String(embedderStats.embedded_total), inline: true },
       { name: 'Synced to pgvector', value: String(embedderStats.synced_total), inline: true },
       {
