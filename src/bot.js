@@ -409,10 +409,26 @@ async function handleExport(interaction) {
     messages: rows,
   };
   const buf = Buffer.from(JSON.stringify(payload, null, 2));
+
+  // Discord's default attachment ceiling is 25MB for unboosted servers.
+  // Refuse here rather than letting Discord reject the upload with a less
+  // helpful error; tell the user how to keep using /search instead.
+  const MAX_BYTES = 24 * 1024 * 1024;
+  if (buf.length > MAX_BYTES) {
+    const mb = (buf.length / 1024 / 1024).toFixed(1);
+    await interaction.editReply(
+      `Export would be ${mb} MB, over Discord's ${MAX_BYTES / 1024 / 1024} MB attachment limit. Try \`/search\` for what you need, or open a request to add a date-range option.`
+    );
+    return;
+  }
+
   const stamp = new Date().toISOString().slice(0, 10);
   const file = new AttachmentBuilder(buf, { name: `channel-${interaction.channelId}-${stamp}.json` });
+  const sizeNote = buf.length >= 1024 * 1024
+    ? `${rows.length} messages, ${(buf.length / 1024 / 1024).toFixed(2)} MB`
+    : `${rows.length} messages, ${(buf.length / 1024).toFixed(1)} KB`;
   await interaction.editReply({
-    content: `Exported ${rows.length} message(s).`,
+    content: `Exported ${sizeNote}.`,
     files: [file],
   });
 }
