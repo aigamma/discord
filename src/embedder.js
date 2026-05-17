@@ -171,5 +171,10 @@ export function getEmbedderStats() {
     synced_total: synced,
     failures,
     pending_embed: pendingEmbeddingsCount(),
+    // Whether a tick is in flight right now. Helpful on /health to see
+    // 'embedder is working' vs 'embedder is idle waiting for the next
+    // 10s tick' — both are valid states but only one needs attention
+    // during shutdown drain.
+    running,
   };
 }
