@@ -87,6 +87,25 @@ if (config.voyage.enabled) {
   console.log('\nVoyage: skipped (VOYAGE_API_KEY not set)');
 }
 
+// SQLite — open the store and run the migration chain to confirm a
+// fresh deployment will start cleanly. Importing db.js triggers the
+// migration sequence; any failure throws at import.
+console.log('\nSQLite store');
+try {
+  const t0 = Date.now();
+  const { db } = await import('../src/db.js');
+  const integrity = db.prepare('PRAGMA integrity_check(1)').get();
+  const migrationCount = db.prepare('SELECT COUNT(*) AS n FROM schema_meta').get().n;
+  const ms = Date.now() - t0;
+  if (integrity?.integrity_check === 'ok') {
+    record('SQLite', true, `integrity ok · ${migrationCount} migration(s) applied · ${ms}ms`);
+  } else {
+    record('SQLite', false, `integrity degraded: ${integrity?.integrity_check ?? 'unknown'}`);
+  }
+} catch (err) {
+  record('SQLite', false, err?.message || String(err));
+}
+
 // DuckDB — check if any shards exist.
 console.log('\nDuckDB shards');
 try {
