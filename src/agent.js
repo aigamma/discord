@@ -366,6 +366,21 @@ async function answerInner({
     finalText += '\n\n_(response truncated at the max-tokens limit)_';
   }
 
+  // Empty assistant text after a successful turn is rare and worth
+  // noticing. Surfaces as '_(no response)_' to the user, but without
+  // a log line the operator can't see a pattern (model issue, prompt
+  // injection, exhausted rounds with no preamble). Warn-level so a
+  // LOG_LEVEL=warn filter catches it.
+  if (!finalText) {
+    logger.warn('agent produced empty assistant text', {
+      channel_id: channelId,
+      user_id: userId,
+      model,
+      stop_reason: stopReason,
+      tool_rounds: toolRounds,
+    });
+  }
+
   // Persistence is best-effort against the user-visible reply. If the
   // SQLite store is full or temporarily broken, the user still gets the
   // model's answer; we just lose the audit row for that turn.
