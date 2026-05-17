@@ -158,6 +158,8 @@ async function handleSummarize(interaction) {
   try {
     const result = await summarize({
       channelId: interaction.channelId,
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
       lookbackMessages: limit,
       onProgress: (text) => reporter.update(text),
     });

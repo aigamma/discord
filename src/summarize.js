@@ -7,7 +7,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
-import { loadChannelHistoryForSummary } from './memory.js';
+import { loadChannelHistoryForSummary, persistMessage, persistTurn } from './memory.js';
 import { priceUsage } from './pricing.js';
 import { logger } from './logger.js';
 
@@ -42,7 +42,7 @@ function formatTranscript(rows) {
   return lines.join('\n');
 }
 
-export async function summarize({ channelId, lookbackMessages = 100, onProgress = null }) {
+export async function summarize({ channelId, guildId = null, userId = null, lookbackMessages = 100, onProgress = null }) {
   const rows = loadChannelHistoryForSummary({ channelId, limit: lookbackMessages });
   if (rows.length === 0) {
     return { text: 'Nothing to summarize. No messages persisted in this channel yet.' };
@@ -86,6 +86,47 @@ export async function summarize({ channelId, lookbackMessages = 100, onProgress 
     cost_usd: cost,
     latency_ms: latency,
   });
+
+  // Record into the audit log so /usage, the daily cost cap, and the
+  // postmortem report all see /summarize cost. Skipped silently when
+  // userId is missing (the older calling convention before the
+  // audit-thread-through change).
+  if (userId) {
+    try {
+      const uMid = persistMessage({
+        channelId, guildId, userId,
+        role: 'user', content: `[/summarize messages=${rows.length}]`,
+        model: config.anthropic.model,
+      });
+      const aMid = persistMessage({
+        channelId, guildId,
+        userId: 'bot', username: 'bot',
+        role: 'assistant', content: text, model: config.anthropic.model,
+        inputTokens: response.usage?.input_tokens ?? null,
+        outputTokens: response.usage?.output_tokens ?? null,
+        cacheCreationInputTokens: response.usage?.cache_creation_input_tokens ?? null,
+        cacheReadInputTokens: response.usage?.cache_read_input_tokens ?? null,
+        costUsd: cost,
+        latencyMs: latency,
+      });
+      persistTurn({
+        channelId, userId,
+        userMessageId: uMid, assistantMessageId: aMid,
+        model: config.anthropic.model,
+        stopReason: response.stop_reason || 'end_turn',
+        toolRounds: 0,
+        inputTokens: response.usage?.input_tokens ?? null,
+        outputTokens: response.usage?.output_tokens ?? null,
+        cacheCreationInputTokens: response.usage?.cache_creation_input_tokens ?? null,
+        cacheReadInputTokens: response.usage?.cache_read_input_tokens ?? null,
+        costUsd: cost,
+        latencyMs: latency,
+        error: null,
+      });
+    } catch (persistErr) {
+      logger.error('summarize audit-log write failed', { err: persistErr });
+    }
+  }
 
   return { text, latency, cost, messagesSummarized: rows.length };
 }
