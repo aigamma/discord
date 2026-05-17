@@ -295,24 +295,36 @@ async function answerInner({
       messages.push({ role: 'user', content: toolResults });
     }
   } catch (err) {
+    // Audit the failure; wrap in try/catch so a SQLite write failure
+    // doesn't replace the original Anthropic error with a less
+    // informative persistence error. The caller cares about WHY the turn
+    // failed, not that the audit log couldn't be updated.
     const latency = Date.now() - t0;
-    const userMessageId = persistMessage({
-      channelId, guildId, userId, username, discordMessageId,
-      role: 'user', content: userMessage, model,
-      latencyMs: 0,
-    });
-    persistTurn({
-      channelId, userId,
-      userMessageId, assistantMessageId: null,
-      model, stopReason: 'error', toolRounds,
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-      cacheCreationInputTokens: usage.cache_creation_input_tokens,
-      cacheReadInputTokens: usage.cache_read_input_tokens,
-      costUsd: priceUsage(model, usage),
-      latencyMs: latency,
-      error: err?.message || String(err),
-    });
+    try {
+      const userMessageId = persistMessage({
+        channelId, guildId, userId, username, discordMessageId,
+        role: 'user', content: userMessage, model,
+        latencyMs: 0,
+      });
+      persistTurn({
+        channelId, userId,
+        userMessageId, assistantMessageId: null,
+        model, stopReason: 'error', toolRounds,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        cacheCreationInputTokens: usage.cache_creation_input_tokens,
+        cacheReadInputTokens: usage.cache_read_input_tokens,
+        costUsd: priceUsage(model, usage),
+        latencyMs: latency,
+        error: err?.message || String(err),
+      });
+    } catch (persistErr) {
+      logger.error('audit-log write failed on error path; original error preserved', {
+        err: persistErr,
+        original_err: err?.message || String(err),
+        channel_id: channelId,
+      });
+    }
     throw err;
   }
 
