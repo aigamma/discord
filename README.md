@@ -152,8 +152,10 @@ exit (30-second drain timeout, 45-second hard kill).
 npm test
 ```
 
-Pure-function tests only (pricing, rate limit, cosine, prompt composition,
-SQL guard). No live API or DB calls.
+node:test suites covering pricing, rate limit, cosine, prompt composition,
+SQL guard, progress reporter, budget, memory persistence, tool cache,
+user notes, backup, and Supabase retry predicates. No live API calls;
+SQLite-touching tests use per-process tmp stores.
 
 ## Architecture
 
@@ -187,7 +189,7 @@ src/
     queryDuckdb.js      Read-only SQL against the backtester shards
 scripts/
   register-commands.js  One-off slash command registration
-test/                   node:test suites (33 tests)
+test/                   node:test suites (78 tests)
 data/                   SQLite store (gitignored, created on first launch)
 ```
 
