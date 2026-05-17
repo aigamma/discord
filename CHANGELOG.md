@@ -6,6 +6,23 @@ first within each section. Versioning is incremental; pre-1.0 only.
 ## Unreleased
 
 ### Added
+- `/forget-note number:<n>` removes a single saved note by its 1-based
+  number from `/notes` (the existing `/forget-notes` clears all). Wires
+  the deleteUserNote backend that previously only the test suite
+  exercised.
+- `/usage` exposes p50 / p95 latency via linear-interpolation
+  percentile alongside the existing avg — surfaces tail behavior that
+  the average smooths over.
+- `/admin feedback` lines now show which model produced each
+  thumbs-up/down so operators can spot model-specific quality patterns
+  without cross-referencing the audit log.
+- System prompt now defines the dealer-GEX sign convention (positive
+  net_gex = long gamma = pinning; negative = short gamma = trending)
+  so the model interprets get_gex_levels and get_gex_history outputs
+  consistently turn-over-turn.
+- Startup warns when the configured Anthropic model has no entry in
+  pricing.js — otherwise cost tracking silently records null forever
+  and the daily cap never triggers.
 - Prompt-cache hit ratio surfaces on `/usage`. Lets operators spot a
   silent cache regression (a moved breakpoint or a varying-per-turn
   prefix) that would otherwise be invisible until the cost ledger
