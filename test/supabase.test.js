@@ -9,20 +9,13 @@ process.env.DISCORD_BOT_TOKEN ||= 'stub';
 process.env.DISCORD_CLIENT_ID ||= 'stub';
 process.env.ANTHROPIC_API_KEY ||= 'stub';
 
-// The predicates are not exported; recreate them inline so the test asserts
-// the spec without depending on internal symbols. If the source diverges,
-// this test fails loudly — a feature, not a bug.
+// Import the actual predicates from the source so any future change to
+// the retry policy automatically reaches CI (a previous version of this
+// file mirrored the predicates inline and silently drifted).
+process.env.SUPABASE_URL ||= 'https://stub.supabase.co';
+process.env.SUPABASE_KEY ||= 'sb_secret_stub';
 
-function isTransientError(err) {
-  if (!err) return false;
-  if (err.name === 'AbortError' || err.name === 'TimeoutError') return true;
-  const code = err.cause?.code || err.code;
-  return ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH', 'UND_ERR_SOCKET'].includes(code);
-}
-
-function isTransientStatus(status) {
-  return status === 502 || status === 503 || status === 504 || status === 408;
-}
+const { isTransientError, isTransientStatus } = await import('../src/supabase.js');
 
 test('supabase: timeout / abort are transient', () => {
   assert.equal(isTransientError({ name: 'AbortError' }), true);

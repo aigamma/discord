@@ -20,14 +20,17 @@ function authHeaders() {
   };
 }
 
-function isTransientError(err) {
+// Exported so the supabase.test.js suite can pin the actual predicates
+// instead of mirroring them inline (which silently drifts when the
+// source list of retried errors / status codes changes).
+export function isTransientError(err) {
   if (!err) return false;
   if (err.name === 'AbortError' || err.name === 'TimeoutError') return true;
   const code = err.cause?.code || err.code;
   return ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH', 'UND_ERR_SOCKET'].includes(code);
 }
 
-function isTransientStatus(status) {
+export function isTransientStatus(status) {
   return status === 502 || status === 503 || status === 504 || status === 408;
 }
 
