@@ -86,6 +86,24 @@ test('user notes: deleteUserNote requires matching user (security)', () => {
   assert.equal(deleteUserNote({ userId: owner, id: r.id }), 1);
 });
 
+test('user notes: deleteUserNote returns 0 for a non-existent id', () => {
+  const owner = 'u-del-noop-' + Math.random();
+  // No note inserted; id never existed.
+  assert.equal(deleteUserNote({ userId: owner, id: 999999999 }), 0);
+});
+
+test('user notes: deleteUserNote preserves other notes from the same user', () => {
+  // Pin that single-note deletion (the new /forget-note slash handler)
+  // removes only the target row, not the rest of the user's notes.
+  const owner = 'u-multi-del-' + Math.random();
+  const r1 = addUserNote({ userId: owner, content: 'note 1' });
+  const r2 = addUserNote({ userId: owner, content: 'note 2' });
+  const r3 = addUserNote({ userId: owner, content: 'note 3' });
+  assert.equal(deleteUserNote({ userId: owner, id: r2.id }), 1);
+  const remaining = listUserNotes(owner).map((n) => n.id);
+  assert.deepEqual(remaining.sort(), [r1.id, r3.id].sort());
+});
+
 test('user notes: loadUserNotesAsBlock formats for prompt', () => {
   const u = 'u-blk-' + Math.random();
   assert.equal(loadUserNotesAsBlock(u), null);
