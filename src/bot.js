@@ -364,7 +364,13 @@ async function handleHealth(interaction) {
       { name: 'Embed pending', value: String(embedderStats.pending_embed), inline: true },
       { name: 'Embedded total', value: String(embedderStats.embedded_total), inline: true },
       { name: 'Synced to pgvector', value: String(embedderStats.synced_total), inline: true },
-      { name: 'Embedder failures', value: String(embedderStats.failures), inline: true },
+      {
+        name: 'Embedder failures',
+        // Split by side so the operator sees 'Voyage is sick' vs
+        // 'pgvector upsert is sick' separately — different fixes.
+        value: `embed ${embedderStats.embed_failures} · sync ${embedderStats.sync_failures}`,
+        inline: true,
+      },
       {
         name: 'Supabase pgvector',
         value: pgvectorEnabled()

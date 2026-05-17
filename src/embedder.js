@@ -32,7 +32,11 @@ let initialKick = null;
 let embedRuns = 0;
 let embedded = 0;
 let synced = 0;
-let failures = 0;
+// Failures split by side so /health distinguishes 'Voyage is sick'
+// from 'Supabase pgvector upsert is sick'. Each is a different
+// remediation path; lumping them lost diagnostic signal.
+let embedFailures = 0;
+let syncFailures = 0;
 
 async function embedTick() {
   const rows = getPendingEmbeddings(EMBED_BATCH_SIZE);
@@ -95,13 +99,13 @@ async function tick() {
     try {
       await embedTick();
     } catch (err) {
-      failures++;
+      embedFailures++;
       try { logger.error('embedder embed tick failed', { err }); } catch { /* logger refused */ }
     }
     try {
       await pgvectorTick();
     } catch (err) {
-      failures++;
+      syncFailures++;
       try { logger.error('embedder pgvector sync failed', { err }); } catch { /* logger refused */ }
     }
   } finally {
@@ -165,7 +169,13 @@ export function getEmbedderStats() {
     embed_runs: embedRuns,
     embedded_total: embedded,
     synced_total: synced,
-    failures,
+    embed_failures: embedFailures,
+    sync_failures: syncFailures,
+    // Backwards-compat: legacy /health embeds and integration scripts
+    // may still reference `failures`. Sum of the two sides keeps the
+    // total semantics while the split fields give the operator the
+    // actual diagnostic signal.
+    failures: embedFailures + syncFailures,
     pending_embed: pendingEmbeddingsCount(),
     // Whether a tick is in flight right now. Helpful on /health to see
     // 'embedder is working' vs 'embedder is idle waiting for the next
