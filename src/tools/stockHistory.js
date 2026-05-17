@@ -44,7 +44,16 @@ export async function execute({ symbol, lookback_days = 60 } = {}) {
     return { error: `No daily_eod rows for ${symbol.toUpperCase()} in the last ${days} days.` };
   }
 
-  const closes = rows.map((r) => Number(r.close)).filter((n) => Number.isFinite(n));
+  // Number(null) === 0, so the previous filter let null closes through as
+  // zeros — polluting min_close and producing latest_close: 0 when the
+  // tail row had a missing close (ingest gap). Filter on null FIRST,
+  // then coerce. Keep validRows around so `as_of` and `series` reflect
+  // the same view of the data.
+  const validRows = rows.filter((r) => r.close != null && Number.isFinite(Number(r.close)));
+  if (!validRows.length) {
+    return { error: `No usable close prices for ${symbol.toUpperCase()} in the last ${days} days.` };
+  }
+  const closes = validRows.map((r) => Number(r.close));
   const latest = closes[closes.length - 1];
   const earliest = closes[0];
   const min = Math.min(...closes);
@@ -55,14 +64,14 @@ export async function execute({ symbol, lookback_days = 60 } = {}) {
   return {
     symbol: symbol.toUpperCase(),
     lookback_days: days,
-    sample_size: rows.length,
-    as_of: rows[rows.length - 1].trading_date,
+    sample_size: validRows.length,
+    as_of: validRows[validRows.length - 1].trading_date,
     latest_close: latest,
     earliest_close: earliest,
     return_pct: returnPct,
     min_close: min,
     max_close: max,
     drawdown_from_high_pct: drawdownFromHigh,
-    series: rows.map((r) => ({ date: r.trading_date, close: Number(r.close) })),
+    series: validRows.map((r) => ({ date: r.trading_date, close: Number(r.close) })),
   };
 }
