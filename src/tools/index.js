@@ -15,6 +15,8 @@ import * as gexLevels from './gexLevels.js';
 import * as termStructure from './termStructure.js';
 import * as stockHistory from './stockHistory.js';
 import * as gexHistory from './gexHistory.js';
+import * as realizedCorrelations from './realizedCorrelations.js';
+import * as vrpHistory from './vrpHistory.js';
 import * as searchChatHistory from './searchChatHistory.js';
 import * as queryDuckdb from './queryDuckdb.js';
 import { isReady as duckdbReady } from '../duckdb.js';
@@ -26,6 +28,8 @@ const SUPABASE_MODULES = [
   termStructure,
   stockHistory,
   gexHistory,
+  realizedCorrelations,
+  vrpHistory,
 ];
 const MEMORY_MODULES = [searchChatHistory];
 const DUCKDB_MODULES = [queryDuckdb];
