@@ -8,6 +8,76 @@ first within each section. Versioning is incremental; pre-1.0 only.
 ### Added
 - `/summarize` now streams progressive Discord edits via the
   progressReporter, matching the `/ask` UX.
+- `/export` produces a JSON dump of the channel's persisted Q&A as a
+  Discord file attachment, with a 24MB size guard against Discord's
+  attachment ceiling.
+- `/remember`, `/notes`, `/forget-notes`: opt-in per-user notes that
+  surface in every future system prompt for that user.
+- Operator identity in the system prompt and `/about` now driven by
+  `OPERATOR_HANDLE`, `OPERATOR_NAME`, `COMMUNITY_NAME` env vars.
+  Defaults preserve the original Blue / Eric Allione / Options Alchemy
+  identity. Forkers no longer need to edit source.
+- Anthropic native `pause_turn` stop reason now resumes via a fresh
+  round; preserves the cross-round accumulator for streaming and
+  persistence so multi-round responses store the full answer.
+- `web_search_requests` now contributes to per-turn cost in pricing
+  ($10 / 1000 requests), accumulated across all rounds. Server-side
+  `server_tool_use` blocks (web_search / web_fetch) captured in the
+  tool audit log.
+- `/usage` picks up per-tool breakdown and per-caller daily-cap
+  headroom; `/admin feedback` shows the original question alongside
+  the reply for postmortem.
+- Migration 005 user_notes; 006 channel_cutoffs (non-destructive
+  /forget); pgvector 002 UNIQUE(local_id) for upsert idempotency.
+- 3 backup tests, 5 supabase-retry tests, 6 toolCache tests, 8 user
+  notes tests, 6 memory tests, 5 budget tests added to the suite.
+
+### Changed
+- `/forget` is now non-destructive: writes a per-channel cutoff
+  timestamp instead of deleting messages. Old conversations stay
+  searchable via `/search`.
+- `/search scope:all` clamps to the caller's guild; in DMs it
+  silently downgrades to `channel` so cross-DM leakage is impossible.
+  Model-driven `search_chat_history` calls are clamped at the agent
+  so prompt injection can't widen scope.
+- `/admin reset-rate-limit` uses a Discord user picker instead of a
+  raw id string.
+- `runBackup()` extracted from the script; `/admin backup` calls
+  in-process instead of spawning a subprocess.
+- All bot-authored messages set `allowedMentions: {parse: [],
+  repliedUser: true}` so model output containing `<@id>` or
+  `@everyone` doesn't fire notifications.
+
+### Fixed
+- `progressReporter.finalize` is idempotent; a `cancel()` path stops
+  pending edits without landing one.
+- In-flight `releaseWork()` guaranteed by a top-level try/finally;
+  no longer leaks the drain counter on synchronous setup throws.
+- Embedder `running` flag is always reset via outer try/finally,
+  even if logger throws.
+- Embedder shutdown awaits the in-flight tick before the database
+  closes.
+- DuckDB shard probe defends against per-file `statSync` failures.
+- Slash-command boundary catches unhandled errors and replies with a
+  structured message; unknown commands no longer time out silently.
+- pgvector mirror rebuild also wipes Supabase rows before re-syncing
+  so a partial rebuild doesn't leave duplicates.
+- Numeric env vars (ANTHROPIC_MAX_TOKENS, SHORT_TERM_CONTEXT_*,
+  SEARCH_MIN_SIMILARITY, DAILY_USER_COST_CAP_USD,
+  RATE_LIMIT_REQUESTS_PER_MINUTE) validated against expected ranges.
+- /summarize records cost into the turns audit log and enforces rate
+  limit + daily cost cap (previously bypassed both).
+- Cross-round text accumulator persists the full answer (was: only
+  the last round's content blocks).
+- Search results filtered by guild_id when scope is server-wide so
+  DM rows from other users don't surface.
+- Tool calls within a single round execute in parallel.
+- Anthropic transient retry list now includes 408 and 504 (matched
+  the supabase wrapper).
+- `max_tokens` truncation appends an italic hint instead of leaving
+  the user with a mid-sentence response.
+- Persistence wrapped in try/catch — an audit-log write failure no
+  longer hides the reply from the user.
 
 ## 0.1.0 — 2026-05-16
 
