@@ -15,6 +15,30 @@ import { config } from './config.js';
 const API_URL = 'https://api.voyageai.com/v1/embeddings';
 const BATCH_SIZE = 32;
 const TIMEOUT_MS = 30000;
+const RETRY_BACKOFF_MS = 500;
+
+// Transient HTTP statuses worth a single retry. 5xx server-side errors
+// plus 429 rate-limit plus 408 client timeout. 4xx authn/authz/input
+// errors fail fast — retrying won't change a bad API key.
+const TRANSIENT_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
+// Socket-level error codes propagated by undici. Matches the supabase
+// helper's set for consistency.
+const TRANSIENT_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'ECONNREFUSED',
+  'UND_ERR_SOCKET',
+]);
+
+function isTransientFetchError(err) {
+  if (!err) return false;
+  if (err.name === 'AbortError' || err.name === 'TimeoutError') return true;
+  const code = err.code || err.cause?.code;
+  return code ? TRANSIENT_CODES.has(code) : false;
+}
 
 export const isEnabled = () => config.voyage.enabled;
 
@@ -28,19 +52,43 @@ export async function embed(texts, { inputType = 'document' } = {}) {
   const out = new Array(texts.length);
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.voyage.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.voyage.model,
-        input: batch,
-        input_type: inputType,
-      }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    // Single retry on transient failures (network or 5xx/429). Live
+    // /search and search_chat_history both call this synchronously; a
+    // Voyage hiccup without retry surfaces as an error to the model
+    // mid-turn. The background embedder retries naturally on its next
+    // tick — the extra in-line attempt costs at most ~500ms there.
+    let res;
+    let attempt = 0;
+    while (true) {
+      try {
+        res = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.voyage.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.voyage.model,
+            input: batch,
+            input_type: inputType,
+          }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+      } catch (err) {
+        if (attempt === 0 && isTransientFetchError(err)) {
+          attempt++;
+          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+          continue;
+        }
+        throw err;
+      }
+      if (!res.ok && attempt === 0 && TRANSIENT_STATUSES.has(res.status)) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+        continue;
+      }
+      break;
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`Voyage ${res.status}: ${body.slice(0, 300)}`);
