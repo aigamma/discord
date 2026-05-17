@@ -29,6 +29,7 @@ const SYNC_BATCH_SIZE = 64;
 
 let running = false;
 let timer = null;
+let initialKick = null;
 let embedRuns = 0;
 let embedded = 0;
 let synced = 0;
@@ -116,7 +117,13 @@ export function startBackgroundEmbedder() {
   });
 
   timer = setInterval(() => { tick().catch(() => {}); }, INTERVAL_MS);
-  setTimeout(() => { tick().catch(() => {}); }, 1000);
+  // Track the initial kick so a shutdown signal landing in the first
+  // second cancels it cleanly. Without this, a tick could fire against
+  // a closing SQLite DB right after lifecycle.onShutdown started.
+  initialKick = setTimeout(() => {
+    initialKick = null;
+    tick().catch(() => {});
+  }, 1000);
   return timer;
 }
 
@@ -127,6 +134,10 @@ export async function stopBackgroundEmbedder({ waitMs = 5000 } = {}) {
   if (timer) {
     clearInterval(timer);
     timer = null;
+  }
+  if (initialKick) {
+    clearTimeout(initialKick);
+    initialKick = null;
   }
   if (!running) return;
   const deadline = Date.now() + waitMs;
