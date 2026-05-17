@@ -86,6 +86,10 @@ const commands = [
     .setDescription('Clear all your saved notes')
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('export')
+    .setDescription('Download this channel\'s persisted Q&A as JSON')
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('admin')
     .setDescription('Operator-only utilities (owner gated)')
     .addSubcommand((s) =>

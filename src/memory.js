@@ -395,6 +395,37 @@ export function recentFeedback({ hours = 168, limit = 20 } = {}) {
   return selectRecentFeedback.all(since, limit);
 }
 
+// Channel export: full message list with role, content, model, cost, and
+// tool uses. Excludes the binary embedding column.
+const selectChannelExport = db.prepare(`
+  SELECT id, role, user_id, username, content, model,
+         tool_uses, input_tokens, output_tokens, cost_usd, latency_ms,
+         created_at
+  FROM messages
+  WHERE channel_id = ?
+  ORDER BY id ASC
+`);
+
+export function exportChannel(channelId) {
+  const rows = selectChannelExport.all(channelId);
+  return rows.map((r) => ({
+    id: r.id,
+    role: r.role,
+    user_id: r.user_id,
+    username: r.username,
+    content: r.content,
+    model: r.model,
+    tool_uses: r.tool_uses ? JSON.parse(r.tool_uses) : null,
+    tokens: {
+      input: r.input_tokens,
+      output: r.output_tokens,
+    },
+    cost_usd: r.cost_usd,
+    latency_ms: r.latency_ms,
+    created_at: new Date(r.created_at).toISOString(),
+  }));
+}
+
 // ---- User notes ---------------------------------------------------------
 // Opt-in per-user context. Each note is a short free-form line the user
 // asked the bot to remember about them. Surfaces in the system prompt

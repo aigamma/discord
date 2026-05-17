@@ -10,7 +10,7 @@
 // Each turn carries channel/user context into the agent so memory and audit
 // log work. Per-user rate-limit is applied to every turn.
 
-import { ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
+import { AttachmentBuilder, ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits, MessageFlags, Partials } from 'discord.js';
 import { answer } from './agent.js';
 import { config } from './config.js';
 import {
@@ -18,6 +18,7 @@ import {
   attachDiscordMessageId,
   clearShortTermContext,
   clearUserNotes,
+  exportChannel,
   feedbackCounts,
   findAssistantMessage,
   listUserNotes,
@@ -371,6 +372,30 @@ async function handleForgetNotes(interaction) {
   });
 }
 
+async function handleExport(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const rows = exportChannel(interaction.channelId);
+  if (rows.length === 0) {
+    await interaction.editReply('No persisted messages in this channel.');
+    return;
+  }
+  const payload = {
+    channel_id: interaction.channelId,
+    guild_id: interaction.guildId,
+    exported_at: new Date().toISOString(),
+    exported_by: interaction.user.id,
+    message_count: rows.length,
+    messages: rows,
+  };
+  const buf = Buffer.from(JSON.stringify(payload, null, 2));
+  const stamp = new Date().toISOString().slice(0, 10);
+  const file = new AttachmentBuilder(buf, { name: `channel-${interaction.channelId}-${stamp}.json` });
+  await interaction.editReply({
+    content: `Exported ${rows.length} message(s).`,
+    files: [file],
+  });
+}
+
 async function handleAbout(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('Strategic Trading Bot')
@@ -456,6 +481,7 @@ async function handleSlashCommand(interaction) {
     case 'remember':       return handleRemember(interaction);
     case 'notes':          return handleListNotes(interaction);
     case 'forget-notes':   return handleForgetNotes(interaction);
+    case 'export':         return handleExport(interaction);
   }
 }
 
