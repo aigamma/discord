@@ -250,6 +250,20 @@ async function handleUsage(interaction) {
     });
   }
 
+  // Per-user breakdown is owner-only — surveillance vibe if everyone
+  // can see everyone's spend. usageSummary already computes by_user;
+  // this just gates the visibility.
+  if (isOwner(interaction.user.id) && data.by_user.length) {
+    embed.addFields({
+      name: 'By user (owner)',
+      value: data.by_user.slice(0, 8).map((u) => {
+        const cost = formatUsd(u.cost_usd ?? 0);
+        const tokens = (u.tokens ?? 0).toLocaleString();
+        return `<@${u.user_id}> · ${u.turns} turns · ${cost} · ${tokens} tokens`;
+      }).join('\n'),
+    });
+  }
+
   if (isBudgetEnabled()) {
     const callerBudget = checkBudget(interaction.user.id);
     embed.addFields({
@@ -258,7 +272,7 @@ async function handleUsage(interaction) {
     });
   }
 
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: SAFE_ALLOWED_MENTIONS });
 }
 
 async function handleSearch(interaction) {
