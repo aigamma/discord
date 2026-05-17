@@ -6,6 +6,17 @@ first within each section. Versioning is incremental; pre-1.0 only.
 ## Unreleased
 
 ### Added
+- Prompt-cache hit ratio surfaces on `/usage`. Lets operators spot a
+  silent cache regression (a moved breakpoint or a varying-per-turn
+  prefix) that would otherwise be invisible until the cost ledger
+  caught up.
+- `/health` shows lifecycle state (running vs shutting-down) plus
+  the in-flight turn counter — visible drain progress during a
+  rolling restart.
+- Logger auto-flattens `Error` instances at every level, not just
+  `error()`. Previously a `logger.warn('x', {err: someError})`
+  silently rendered `err={}` because Error's enumerable property
+  set is empty.
 - Per-tool latency stamped on every `tool_uses` entry; `/usage`'s
   by-tool field now reports `avg Xms` and the postmortem script
   ranks tools by their own runtime instead of the round's combined
