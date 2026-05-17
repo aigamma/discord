@@ -69,6 +69,9 @@ export function createProgressReporter({ editText, label = 'edit' }) {
       doEdit(text);
     },
     async finalize(text) {
+      // Idempotent. A race between stream completion and shutdown drain
+      // can call finalize twice; we land the canonical edit exactly once.
+      if (closed) return;
       closed = true;
       if (pendingTimer) {
         clearTimeout(pendingTimer);

@@ -71,3 +71,15 @@ test('progress: edit errors do not crash the reporter', async () => {
   // Should not throw. Falling to ground here = no exception.
   await reporter.finalize(big);
 });
+
+test('progress: finalize is idempotent (double-call lands one edit)', async () => {
+  const edits = [];
+  const reporter = createProgressReporter({
+    editText: async (text) => { edits.push(text); },
+  });
+  await reporter.finalize('first');
+  await reporter.finalize('second');
+  await reporter.finalize('third');
+  assert.equal(edits.length, 1, 'only the first finalize should land an edit');
+  assert.equal(edits[0], 'first');
+});
