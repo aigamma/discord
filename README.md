@@ -96,7 +96,9 @@ npm install
 4. **General Information** → copy **Application ID** as `DISCORD_CLIENT_ID`.
 5. **OAuth2** → **URL Generator** → scopes `bot` + `applications.commands`;
    permissions `Send Messages`, `Read Message History`, `Use Slash
-   Commands`, `Embed Links`. Open the generated URL and authorize.
+   Commands`, `Embed Links`, `Attach Files`. Open the generated URL and
+   authorize. (`Attach Files` is required for `/export`'s JSON upload;
+   the bot does not need `Add Reactions` because it only receives them.)
 
 ### 3. Configure
 
