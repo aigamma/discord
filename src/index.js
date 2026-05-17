@@ -17,7 +17,7 @@ startHealthServer();
 
 installLifecycle({
   onShutdown: async () => {
-    stopBackgroundEmbedder();
+    await stopBackgroundEmbedder().catch(() => {});
     await stopHealthServer().catch(() => {});
     await closeDuckDB().catch(() => {});
     await client.destroy().catch(() => {});

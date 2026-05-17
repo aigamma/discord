@@ -118,10 +118,25 @@ export function startBackgroundEmbedder() {
   return timer;
 }
 
-export function stopBackgroundEmbedder() {
+// Stop scheduling new ticks and await the in-flight one if any. The
+// embedder writes to SQLite and Supabase, both of which we want to
+// finish cleanly before shutdown closes the database.
+export async function stopBackgroundEmbedder({ waitMs = 5000 } = {}) {
   if (timer) {
     clearInterval(timer);
     timer = null;
+  }
+  if (!running) return;
+  const deadline = Date.now() + waitMs;
+  // ESLint can't see that `running` is mutated by the concurrent tick()
+  // function in its finally block. The loop terminates either when tick
+  // completes (running flips to false) or when the deadline elapses.
+  // eslint-disable-next-line no-unmodified-loop-condition
+  while (running && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  if (running) {
+    logger.warn('embedder still running at shutdown deadline; in-flight write may be lost', { wait_ms: waitMs });
   }
 }
 
