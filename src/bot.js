@@ -641,7 +641,9 @@ async function handleReactionChange(reaction, user, added) {
 }
 
 async function handleMention(message, clientId) {
-  if (message.author.bot) return;
+  // message.author can be null on system messages and webhook edge cases;
+  // skip those before touching any of its fields.
+  if (!message.author || message.author.bot) return;
   if (!message.mentions.users.has(clientId)) return;
 
   const question = stripMention(message.content, clientId);
