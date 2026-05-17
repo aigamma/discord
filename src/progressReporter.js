@@ -85,5 +85,15 @@ export function createProgressReporter({ editText, label = 'edit' }) {
         logger.warn('final edit failed', { label, err: err?.message || err });
       }
     },
+    // Stop the reporter without landing any further edits. Called from
+    // error paths so a pending debounced edit cannot fire after the
+    // caller has already written an error message to the channel.
+    cancel() {
+      closed = true;
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        pendingTimer = null;
+      }
+    },
   };
 }

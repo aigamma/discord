@@ -142,6 +142,7 @@ async function handleAsk(interaction) {
       await interaction.followUp(parts[i]);
     }
   } catch (err) {
+    reporter.cancel();
     logger.error('ask command failed', { err, user_id: interaction.user.id });
     await interaction.editReply(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
   }
@@ -167,6 +168,7 @@ async function handleSummarize(interaction) {
       await interaction.followUp(parts[i]);
     }
   } catch (err) {
+    reporter.cancel();
     logger.error('summarize failed', { err });
     await interaction.editReply(`Summary failed: \`${err?.message || err}\``).catch(() => {});
   }
@@ -587,6 +589,7 @@ async function handleMention(message, clientId) {
       await message.channel.send(parts[i]);
     }
   } catch (err) {
+    reporter.cancel();
     logger.error('mention handler failed', { err, user_id: message.author.id });
     await sent.edit(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
   }

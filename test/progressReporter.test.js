@@ -72,6 +72,20 @@ test('progress: edit errors do not crash the reporter', async () => {
   await reporter.finalize(big);
 });
 
+test('progress: cancel stops pending edits without landing one', async () => {
+  const edits = [];
+  const reporter = createProgressReporter({
+    editText: async (text) => { edits.push(text); },
+  });
+  reporter.update('x'.repeat(200)); // queues a pending flush
+  reporter.cancel();                  // synchronously clears the timer before it fires
+  await sleep(900);
+  assert.equal(edits.length, 0, 'cancel should prevent the pending edit from landing');
+  // After cancel, finalize is also a no-op
+  await reporter.finalize('this should not land');
+  assert.equal(edits.length, 0);
+});
+
 test('progress: finalize is idempotent (double-call lands one edit)', async () => {
   const edits = [];
   const reporter = createProgressReporter({
