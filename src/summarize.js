@@ -33,14 +33,15 @@ function formatTranscript(rows) {
   return lines.join('\n');
 }
 
-export async function summarize({ channelId, lookbackMessages = 100 }) {
+export async function summarize({ channelId, lookbackMessages = 100, onProgress = null }) {
   const rows = loadChannelHistoryForSummary({ channelId, limit: lookbackMessages });
   if (rows.length === 0) {
     return { text: 'Nothing to summarize. No messages persisted in this channel yet.' };
   }
   const transcript = formatTranscript(rows);
   const t0 = Date.now();
-  const response = await client.messages.create({
+
+  const stream = client.messages.stream({
     model: config.anthropic.model,
     max_tokens: 1500,
     system: SYSTEM,
@@ -52,6 +53,15 @@ export async function summarize({ channelId, lookbackMessages = 100 }) {
     ],
   });
 
+  let accumulated = '';
+  stream.on('text', (_delta, snapshot) => {
+    accumulated = snapshot;
+    if (onProgress) {
+      try { onProgress(accumulated); } catch { /* swallow */ }
+    }
+  });
+
+  const response = await stream.finalMessage();
   const text = response.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)

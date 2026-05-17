@@ -146,14 +146,19 @@ async function handleAsk(interaction) {
 async function handleSummarize(interaction) {
   const limit = interaction.options.getInteger('messages') || 100;
   await interaction.deferReply();
+  const reporter = createProgressReporter({
+    editText: (text) => interaction.editReply(text),
+    label: 'summarize',
+  });
   try {
     const result = await summarize({
       channelId: interaction.channelId,
       lookbackMessages: limit,
+      onProgress: (text) => reporter.update(text),
     });
     const text = result.text || '_(no summary produced)_';
     const parts = chunk(text);
-    await interaction.editReply(parts[0]);
+    await reporter.finalize(parts[0]);
     for (let i = 1; i < parts.length; i++) {
       await interaction.followUp(parts[i]);
     }
