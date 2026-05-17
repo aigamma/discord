@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
 import { loadChannelHistoryForSummary, persistMessage, persistTurn } from './memory.js';
 import { priceUsage } from './pricing.js';
+import { withAnthropicRetry } from './anthropicRetry.js';
 import { logger } from './logger.js';
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey });
@@ -50,17 +51,19 @@ export async function summarize({ channelId, guildId = null, userId = null, look
   const transcript = formatTranscript(rows);
   const t0 = Date.now();
 
-  const stream = client.messages.stream({
-    model: config.anthropic.model,
-    max_tokens: 1500,
-    system: SYSTEM,
-    messages: [
-      {
-        role: 'user',
-        content: `Summarize the following channel transcript. ${rows.length} messages, oldest first:\n\n${transcript}`,
-      },
-    ],
-  });
+  const stream = await withAnthropicRetry(async () =>
+    client.messages.stream({
+      model: config.anthropic.model,
+      max_tokens: 1500,
+      system: SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content: `Summarize the following channel transcript. ${rows.length} messages, oldest first:\n\n${transcript}`,
+        },
+      ],
+    })
+  );
 
   let accumulated = '';
   stream.on('text', (_delta, snapshot) => {

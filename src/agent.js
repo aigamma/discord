@@ -19,11 +19,10 @@ import { getToolSpecs, executeTool } from './tools/index.js';
 import { loadShortTermContext, persistMessage, persistTurn, loadUserNotesAsBlock } from './memory.js';
 import { priceUsage } from './pricing.js';
 import { beginWork, isShuttingDown } from './lifecycle.js';
+import { withAnthropicRetry } from './anthropicRetry.js';
 import { logger } from './logger.js';
 
 const MAX_TOOL_ROUNDS = 8;
-const RETRY_ATTEMPTS = 3;
-const RETRY_BACKOFF_MS = [1000, 3000, 8000];
 
 const client = new Anthropic({ apiKey: config.anthropic.apiKey });
 
@@ -39,25 +38,6 @@ function getServerTools() {
     out.push({ type: 'web_fetch_20250910', name: 'web_fetch' });
   }
   return out;
-}
-
-async function withRetry(fn) {
-  let lastErr;
-  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      const status = err?.status || err?.response?.status;
-      const transient = status === 408 || status === 429 || status === 500
-        || status === 502 || status === 503 || status === 504 || status === 529;
-      if (!transient || attempt === RETRY_ATTEMPTS - 1) throw err;
-      const wait = RETRY_BACKOFF_MS[attempt] || 5000;
-      logger.warn('anthropic transient error; retrying', { status, attempt: attempt + 1, wait_ms: wait });
-      await new Promise((r) => setTimeout(r, wait));
-    }
-  }
-  throw lastErr;
 }
 
 function accumulateUsage(acc, usage) {
@@ -200,7 +180,7 @@ async function answerInner({
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const stream = await withRetry(async () =>
+      const stream = await withAnthropicRetry(async () =>
         client.messages.stream({
           model,
           max_tokens: config.anthropic.maxTokens,
