@@ -454,11 +454,16 @@ async function handleExport(interaction) {
 }
 
 async function handleAbout(interaction) {
+  const modelLabel = config.anthropic.model
+    .replace('claude-', '')
+    .replace(/-(\d+)-(\d+)/, ' $1.$2')
+    .replace(/-\d{8}$/, '')
+    .replace(/^(\w)/, (m) => m.toUpperCase());
   const embed = new EmbedBuilder()
     .setTitle('Strategic Trading Bot')
     .setColor(0x4a9eff)
     .setDescription(
-      `Sonnet 4.6 with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for ${config.operator.communityName}.`
+      `${modelLabel} with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for ${config.operator.communityName}.`
     )
     .addFields(
       {
