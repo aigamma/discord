@@ -290,36 +290,43 @@ async function answerInner({
     stopReason = 'tool_rounds_exceeded';
   }
 
-  const userMessageId = persistMessage({
-    channelId, guildId, userId, username, discordMessageId,
-    role: 'user', content: userMessage, model,
-  });
-
-  const assistantMessageId = persistMessage({
-    channelId, guildId,
-    userId: 'bot', username: 'bot',
-    role: 'assistant', content: finalText, model,
-    toolUses: allToolUses,
-    inputTokens: usage.input_tokens,
-    outputTokens: usage.output_tokens,
-    cacheCreationInputTokens: usage.cache_creation_input_tokens,
-    cacheReadInputTokens: usage.cache_read_input_tokens,
-    costUsd: cost,
-    latencyMs: latency,
-  });
-
-  persistTurn({
-    channelId, userId,
-    userMessageId, assistantMessageId,
-    model, stopReason, toolRounds,
-    inputTokens: usage.input_tokens,
-    outputTokens: usage.output_tokens,
-    cacheCreationInputTokens: usage.cache_creation_input_tokens,
-    cacheReadInputTokens: usage.cache_read_input_tokens,
-    costUsd: cost,
-    latencyMs: latency,
-    error: null,
-  });
+  // Persistence is best-effort against the user-visible reply. If the
+  // SQLite store is full or temporarily broken, the user still gets the
+  // model's answer; we just lose the audit row for that turn.
+  let userMessageId = null;
+  let assistantMessageId = null;
+  try {
+    userMessageId = persistMessage({
+      channelId, guildId, userId, username, discordMessageId,
+      role: 'user', content: userMessage, model,
+    });
+    assistantMessageId = persistMessage({
+      channelId, guildId,
+      userId: 'bot', username: 'bot',
+      role: 'assistant', content: finalText, model,
+      toolUses: allToolUses,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheCreationInputTokens: usage.cache_creation_input_tokens,
+      cacheReadInputTokens: usage.cache_read_input_tokens,
+      costUsd: cost,
+      latencyMs: latency,
+    });
+    persistTurn({
+      channelId, userId,
+      userMessageId, assistantMessageId,
+      model, stopReason, toolRounds,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheCreationInputTokens: usage.cache_creation_input_tokens,
+      cacheReadInputTokens: usage.cache_read_input_tokens,
+      costUsd: cost,
+      latencyMs: latency,
+      error: null,
+    });
+  } catch (persistErr) {
+    logger.error('audit-log write failed; reply will still be delivered', { err: persistErr, channel_id: channelId });
+  }
 
   logger.info('turn completed', {
     channel_id: channelId,
