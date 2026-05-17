@@ -252,10 +252,12 @@ async function answerInner({
       // as a batch and the order of results doesn't matter for the model's
       // next step. Parallelize so a five-tool round doesn't pay the sum of
       // five Supabase round trips.
-      for (const block of toolUseBlocks) {
-        allToolUses.push({ name: block.name, input: block.input, round });
-      }
-      const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
+      const roundToolEntries = toolUseBlocks.map((block) => {
+        const entry = { name: block.name, input: block.input, round, latency_ms: null };
+        allToolUses.push(entry);
+        return entry;
+      });
+      const toolResults = await Promise.all(toolUseBlocks.map(async (block, idx) => {
         // Defense in depth: clamp privacy-sensitive tool inputs against
         // the caller's actual context so a model (or a prompt-injection
         // attempt) cannot widen the scope. Currently only
@@ -272,7 +274,13 @@ async function answerInner({
             channel_id: guildId ? toolInput?.channel_id ?? null : channelId,
           };
         }
+        const toolStart = Date.now();
         const result = await executeTool(block.name, toolInput);
+        // Stamp the entry that the synchronous push above created with
+        // its real latency. allToolUses + roundToolEntries point to the
+        // same object reference, so the by-tool latency rolls up in the
+        // audit log and in /usage and postmortem aggregations.
+        roundToolEntries[idx].latency_ms = Date.now() - toolStart;
         return {
           type: 'tool_result',
           tool_use_id: block.id,

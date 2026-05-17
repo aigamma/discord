@@ -551,11 +551,18 @@ const selectUsageByModel = db.prepare(`
   ORDER BY cost_usd DESC
 `);
 
-// Tool-use counts from the assistant message rows' tool_uses JSON. Uses
-// SQLite's json_each(); slow on huge stores but the audit window is small
-// and the join is on the indexed time range.
+// Tool-use counts + average latency from the assistant message rows'
+// tool_uses JSON. Each entry carries {name, input, round, latency_ms};
+// the average is over entries where latency_ms is non-null (server-side
+// tools like web_search currently emit null latency since their cost
+// surfaces from Anthropic's usage payload, not from executeTool).
+// SQLite's json_each() is fine on small stores; the time-range index
+// keeps the scan bounded.
 const selectToolUseCounts = db.prepare(`
-  SELECT j.value->>'name' AS tool, COUNT(*) AS calls
+  SELECT
+    j.value->>'name' AS tool,
+    COUNT(*) AS calls,
+    AVG(CAST(j.value->>'latency_ms' AS REAL)) AS avg_latency_ms
   FROM messages m, json_each(m.tool_uses) j
   WHERE m.role = 'assistant'
     AND m.tool_uses IS NOT NULL

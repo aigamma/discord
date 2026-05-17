@@ -89,8 +89,14 @@ tableSection('Thumbs-down feedback', thumbsDown);
 
 let toolStats = [];
 try {
+  // Use the per-tool latency stamped on each tool_uses entry rather than
+  // the whole assistant message's latency (which combines the round's
+  // network + every tool's runtime). Per-tool gives a fair ranking.
   toolStats = db.prepare(`
-    SELECT j.value->>'name' AS tool, COUNT(*) AS calls, AVG(m.latency_ms) AS avg_latency_ms
+    SELECT
+      j.value->>'name' AS tool,
+      COUNT(*) AS calls,
+      AVG(CAST(j.value->>'latency_ms' AS REAL)) AS avg_latency_ms
     FROM messages m, json_each(m.tool_uses) j
     WHERE m.role = 'assistant' AND m.tool_uses IS NOT NULL AND m.created_at >= ?
     GROUP BY tool ORDER BY calls DESC LIMIT 15

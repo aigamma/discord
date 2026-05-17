@@ -222,7 +222,10 @@ async function handleUsage(interaction) {
   if (data.by_tool.length) {
     embed.addFields({
       name: 'By tool',
-      value: data.by_tool.slice(0, 10).map((t) => `\`${t.tool}\` ${t.calls}`).join('\n'),
+      value: data.by_tool.slice(0, 10).map((t) => {
+        const lat = t.avg_latency_ms != null ? ` · avg ${Math.round(t.avg_latency_ms)}ms` : '';
+        return `\`${t.tool}\` ${t.calls}${lat}`;
+      }).join('\n'),
     });
   }
 
