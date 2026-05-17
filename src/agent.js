@@ -256,7 +256,23 @@ async function answerInner({
         allToolUses.push({ name: block.name, input: block.input, round });
       }
       const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
-        const result = await executeTool(block.name, block.input);
+        // Defense in depth: clamp privacy-sensitive tool inputs against
+        // the caller's actual context so a model (or a prompt-injection
+        // attempt) cannot widen the scope. Currently only
+        // search_chat_history is affected; new privacy-sensitive tools
+        // should be added here as they land.
+        let toolInput = block.input;
+        if (block.name === 'search_chat_history') {
+          toolInput = {
+            ...toolInput,
+            guild_id: guildId || null,
+            // In a DM (no guildId), force channel-only scope so a model
+            // can't pull from other users' DMs even by passing channel_id
+            // = null.
+            channel_id: guildId ? toolInput?.channel_id ?? null : channelId,
+          };
+        }
+        const result = await executeTool(block.name, toolInput);
         return {
           type: 'tool_result',
           tool_use_id: block.id,
