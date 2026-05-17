@@ -89,8 +89,8 @@ function buildToolsWithCache(specs) {
 // (persona + identity + constraints + definitions + tools) stays cacheable
 // across turns. Per-turn temporal + per-user notes sit after the
 // breakpoint and vary freely.
-function buildSystemBlocks({ userId } = {}) {
-  const userNotesBlock = userId ? loadUserNotesAsBlock(userId) : null;
+function buildSystemBlocks({ userId, username } = {}) {
+  const userNotesBlock = userId ? loadUserNotesAsBlock(userId, username) : null;
   const full = buildSystemPrompt({ userNotesBlock });
   const splitMarker = '\n\n[TIME AND MARKET SESSION]';
   const idx = full.indexOf(splitMarker);
@@ -176,7 +176,7 @@ async function answerInner({
   const model = modelOverride || config.anthropic.model;
   const toolSpecs = getToolSpecs();
   const tools = buildToolsWithCache(toolSpecs);
-  const systemBlocks = buildSystemBlocks({ userId });
+  const systemBlocks = buildSystemBlocks({ userId, username });
 
   const historicalMessages = loadShortTermContext({ channelId, isMultiUser });
   const userContent = isMultiUser && username ? `[${username}]: ${userMessage}` : userMessage;

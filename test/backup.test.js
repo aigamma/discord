@@ -41,8 +41,8 @@ test('backup: default path lands in data/backups/ with iso stamp', () => {
 test('backup: rotation drops older files past the keep count', () => {
   const backupDir = join(tmp, 'rotation-test');
   // Generate three backups, keep=2 on the third should drop the oldest.
-  const a = runBackup({ outPath: join(backupDir, 'conversation-1.db'), keep: 0 });
-  const b = runBackup({ outPath: join(backupDir, 'conversation-2.db'), keep: 0 });
+  runBackup({ outPath: join(backupDir, 'conversation-1.db'), keep: 0 });
+  runBackup({ outPath: join(backupDir, 'conversation-2.db'), keep: 0 });
   const c = runBackup({ outPath: join(backupDir, 'conversation-3.db'), keep: 2 });
   assert.equal(c.rotated.length, 1, 'one file should rotate out at keep=2');
   // The exact survivor depends on mtime ordering; just confirm one of the

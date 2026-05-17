@@ -92,7 +92,14 @@ test('user notes: loadUserNotesAsBlock formats for prompt', () => {
   addUserNote({ userId: u, content: 'I trade SPX' });
   addUserNote({ userId: u, content: 'I dislike calendar spreads' });
   const block = loadUserNotesAsBlock(u);
-  assert.ok(block.includes('[YOUR NOTES FOR THIS USER]'));
+  assert.ok(block.includes('[NOTES FOR THIS ASKER]'));
   assert.ok(block.includes('1. I trade SPX'));
   assert.ok(block.includes('2. I dislike calendar spreads'));
+});
+
+test('user notes: loadUserNotesAsBlock embeds username when provided', () => {
+  const u = 'u-named-' + Math.random();
+  addUserNote({ userId: u, content: 'I want concise answers' });
+  const block = loadUserNotesAsBlock(u, 'Blue');
+  assert.ok(block.includes('Blue'), 'username should appear in the block header');
 });

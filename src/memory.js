@@ -499,12 +499,13 @@ export function clearUserNotes(userId) {
   return Number(r.changes);
 }
 
-export function loadUserNotesAsBlock(userId) {
+export function loadUserNotesAsBlock(userId, username = null) {
   if (!userId) return null;
   const rows = selectUserNotes.all(userId);
   if (rows.length === 0) return null;
   const lines = rows.map((r, i) => `${i + 1}. ${r.content}`);
-  return `[YOUR NOTES FOR THIS USER]\nThe user has asked you to remember the following. Apply them when relevant; do not announce that you are doing so.\n\n${lines.join('\n')}`;
+  const who = username ? `the current asker (${username})` : 'the current asker';
+  return `[NOTES FOR THIS ASKER]\n${who} has asked you to remember the following. Apply them when relevant; do not announce that you are doing so. These notes pertain to ${who} only, not to other speakers in the channel.\n\n${lines.join('\n')}`;
 }
 
 // Aggregate usage stats over a rolling window (default 24h) for the /usage
