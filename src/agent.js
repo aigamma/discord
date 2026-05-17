@@ -221,6 +221,17 @@ async function answerInner({
       accumulateUsage(usage, response.usage);
       stopReason = response.stop_reason;
 
+      // pause_turn means the model wants to continue but hit a soft context
+      // boundary. Append the partial assistant content and loop again so the
+      // model can resume from where it left off. No tool_results needed
+      // because no tool was invoked. Still counts against MAX_TOOL_ROUNDS so
+      // a runaway can't loop forever.
+      if (response.stop_reason === 'pause_turn') {
+        toolRounds++;
+        messages.push({ role: 'assistant', content: response.content });
+        continue;
+      }
+
       if (response.stop_reason !== 'tool_use') {
         finalText = response.content
           .filter((b) => b.type === 'text')
