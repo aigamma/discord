@@ -67,6 +67,7 @@ const TOOL_TTLS = {
 };
 
 import * as toolCache from '../toolCache.js';
+import { logger } from '../logger.js';
 
 export async function executeTool(name, input) {
   const fn = EXECUTORS[name];
@@ -85,6 +86,7 @@ export async function executeTool(name, input) {
     // undefined, and the missing key trips a 400 from the API). Coerce
     // null/undefined into a structured no-result error.
     if (result === undefined || result === null) {
+      logger.warn('tool returned undefined; coercing to structured error', { tool: name });
       return { error: `Tool ${name} returned no result.` };
     }
     if (ttl > 0 && !result?.error) {
@@ -92,6 +94,13 @@ export async function executeTool(name, input) {
     }
     return result;
   } catch (err) {
+    // Surface tool failures in logs even though we hand the model a
+    // structured error. Otherwise a systematic regression (renamed
+    // table, expired token, broken RPC) shows up as 'the bot's giving
+    // weak answers' rather than a queryable warn-level signal the
+    // operator can find. Logged at warn — the model still has a path
+    // forward via the structured error.
+    logger.warn('tool execution failed', { tool: name, err });
     return { error: err?.message || String(err) };
   }
 }
