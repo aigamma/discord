@@ -87,7 +87,14 @@ async function searchPgvector(queryVec, k, minSim, channelId, guildId) {
 function searchSqliteFallback(queryVec, k, minSim, channelId, guildId) {
   const heap = [];
   let scanned = 0;
-  for (const row of iterEmbeddedUserMessages()) {
+  // Push channel / guild filter into SQL so the iterator scans only
+  // the rows that could possibly match. For a corpus of 100K embedded
+  // rows with a single-channel filter, this skips the 99K rows we'd
+  // otherwise iterate just to drop in JS.
+  for (const row of iterEmbeddedUserMessages({ channelId, guildId })) {
+    // Belt-and-suspenders: the iterator already filters, but if a
+    // future refactor weakens the SQL filter the JS guard stays in
+    // place so the search never widens scope.
     if (channelId && row.channel_id !== channelId) continue;
     if (guildId && row.guild_id !== guildId) continue;
     scanned++;

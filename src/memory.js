@@ -89,6 +89,20 @@ const selectEmbeddedUserMessages = db.prepare(`
   WHERE m.embedding IS NOT NULL AND m.role = 'user'
 `);
 
+// Channel- and guild-filtered variants used by the search tool's
+// SQLite fallback. Pushing the filter into SQL avoids loading the
+// entire embedded corpus into JS just to drop most of it.
+const selectEmbeddedUserMessagesByChannel = db.prepare(`
+  SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.content, m.created_at, m.embedding
+  FROM messages m
+  WHERE m.embedding IS NOT NULL AND m.role = 'user' AND m.channel_id = ?
+`);
+const selectEmbeddedUserMessagesByGuild = db.prepare(`
+  SELECT m.id, m.channel_id, m.guild_id, m.user_id, m.username, m.content, m.created_at, m.embedding
+  FROM messages m
+  WHERE m.embedding IS NOT NULL AND m.role = 'user' AND m.guild_id = ?
+`);
+
 const selectGuildIdFor = db.prepare(`SELECT guild_id FROM messages WHERE id = ? LIMIT 1`);
 export function getGuildIdFor(localId) {
   const row = selectGuildIdFor.get(localId);
@@ -346,11 +360,18 @@ export function setEmbeddingBulk(entries) {
   }
 }
 
-// Returns every embedded user message paired with its embedding (deserialized).
-// Iterates in chunks so the entire corpus does not have to land in memory at
-// once for very large stores. Used by the semantic-search tool.
-export function* iterEmbeddedUserMessages() {
-  for (const row of selectEmbeddedUserMessages.iterate()) {
+// Returns embedded user messages paired with their embeddings. Pushes
+// channel_id / guild_id filters into SQL so a search restricted to a
+// single channel doesn't scan the whole corpus to drop most rows.
+// Iterates lazily — never loads the whole result set into memory.
+export function* iterEmbeddedUserMessages({ channelId = null, guildId = null } = {}) {
+  // channelId takes precedence (most selective; uses idx_messages_channel_time).
+  const iter = channelId
+    ? selectEmbeddedUserMessagesByChannel.iterate(channelId)
+    : guildId
+      ? selectEmbeddedUserMessagesByGuild.iterate(guildId)
+      : selectEmbeddedUserMessages.iterate();
+  for (const row of iter) {
     yield row;
   }
 }
