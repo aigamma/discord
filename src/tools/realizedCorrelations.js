@@ -25,7 +25,7 @@ export const spec = {
       },
       lookback_days: {
         type: 'integer',
-        description: 'Calendar days of history (default 60). Trading days included will be roughly 70% of this.',
+        description: 'Calendar days of history (default 60, clamped to [7, 1260]). Trading days included will be roughly 70% of this.',
         default: 60,
       },
     },

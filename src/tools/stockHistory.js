@@ -17,7 +17,7 @@ export const spec = {
       },
       lookback_days: {
         type: 'integer',
-        description: 'How many calendar days of history to return. Defaults to 60. Hard cap at 1260 (five years).',
+        description: 'How many calendar days of history to return. Defaults to 60. Clamped to [1, 1260] (five years).',
         default: 60,
       },
     },

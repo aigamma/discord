@@ -14,7 +14,7 @@ export const spec = {
     properties: {
       lookback_days: {
         type: 'integer',
-        description: 'Calendar days of history. Default 252 (one trading year). Hard cap 1260.',
+        description: 'Calendar days of history. Default 252 (one trading year). Clamped to [30, 1260].',
         default: 252,
       },
     },

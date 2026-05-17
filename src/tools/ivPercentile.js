@@ -18,7 +18,7 @@ export const spec = {
     properties: {
       lookback_days: {
         type: 'integer',
-        description: 'How many calendar days of history to rank the current IV against. Defaults to 252 (one trading year). Use 504 for two years or 1260 for five years if the user wants a longer-baseline rank.',
+        description: 'How many calendar days of history to rank the current IV against. Defaults to 252 (one trading year). Clamped to [30, 1260]. Use 504 for two years or 1260 for five years if the user wants a longer-baseline rank.',
         default: 252,
       },
     },
