@@ -401,6 +401,7 @@ const selectRecentFeedback = db.prepare(`
     f.id, f.assistant_message_id, f.user_id, f.channel_id, f.sentiment,
     f.created_at,
     am.content AS reply_content,
+    am.model   AS model,
     um.content AS question_content
   FROM feedback f
   LEFT JOIN messages am ON am.id = f.assistant_message_id

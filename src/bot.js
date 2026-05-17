@@ -575,7 +575,10 @@ async function handleAdmin(interaction) {
         const tag = f.sentiment === 'up' ? '👍' : '👎';
         const q = (f.question_content || '').slice(0, 60).replace(/\n/g, ' ');
         const a = (f.reply_content || '').slice(0, 60).replace(/\n/g, ' ');
-        const line = `${tag} ${when} <@${f.user_id}>\n   Q: ${q || '(unknown)'}\n   A: ${a || '(empty)'}\n`;
+        // Surface model so the operator can spot patterns ('all
+        // thumbs-down are on Haiku — let's lock /ask default to Sonnet').
+        const modelTag = f.model ? ` [${f.model.replace(/^claude-/, '')}]` : '';
+        const line = `${tag}${modelTag} ${when} <@${f.user_id}>\n   Q: ${q || '(unknown)'}\n   A: ${a || '(empty)'}\n`;
         if (body.length + line.length > budget) break;
         body += line;
         included++;
