@@ -90,13 +90,20 @@ if (config.voyage.enabled) {
 // DuckDB — check if any shards exist.
 console.log('\nDuckDB shards');
 try {
-  const { initDuckDB, isReady, getAttachedShards, closeDuckDB } = await import('../src/duckdb.js');
+  const { initDuckDB, isReady, getAttachedShards, closeDuckDB, getInitError } = await import('../src/duckdb.js');
   await initDuckDB();
   if (isReady()) {
     const shards = getAttachedShards();
     record('DuckDB', true, `${shards.length} shard(s) attached: ${shards.map((s) => s.name).join(', ')}`);
   } else {
-    record('DuckDB', true, 'no shards found (optional; query_duckdb tool will be unavailable)');
+    // Distinguish "no shards at the configured path" from "shards present
+    // but init threw" — operator needs to know which one to fix.
+    const err = getInitError();
+    if (err) {
+      record('DuckDB', false, `init failed: ${err}`);
+    } else {
+      record('DuckDB', true, 'no shards found (optional; query_duckdb tool will be unavailable)');
+    }
   }
   await closeDuckDB();
 } catch (err) {
