@@ -125,6 +125,24 @@ test('realizedCorrelations: drops dates with a null close for any basket symbol'
   }
 });
 
+test('realizedCorrelations: dedupes basket by uppercased symbol', async () => {
+  // Same symbol passed in different cases should collapse to one entry.
+  let capturedParams;
+  const restore = stubFetch(async (_path, params) => {
+    capturedParams = params;
+    return [];
+  });
+  try {
+    await execute({ symbols: ['SPY', 'spy', 'QQQ', 'qqq', 'spy'], lookback_days: 30 });
+    const listed = capturedParams.symbol.match(/[A-Z]+/g) || [];
+    // Filter out the 'in' literal from `in.(SPY,QQQ)`
+    const symbols = listed.filter((s) => s !== 'IN');
+    assert.deepEqual(symbols.sort(), ['QQQ', 'SPY']);
+  } finally {
+    restore();
+  }
+});
+
 test('realizedCorrelations: caps basket at 30 symbols', async () => {
   // Generate 50 symbols. The pearson cost is O(N^2 * days), and a
   // 50-symbol basket at the 1260-day cap would tie up the agent loop
