@@ -56,3 +56,21 @@ test('prompt: contains operator identity block with the configured values', asyn
   assert.ok(p.includes(config.operator.name), `expected name "${config.operator.name}" in prompt`);
   assert.ok(p.includes(config.operator.communityName), `expected community "${config.operator.communityName}" in prompt`);
 });
+
+// agent.js splits the prompt at exactly `\n\n[TIME AND MARKET SESSION]`
+// so the static prefix carries cache_control: ephemeral and the per-turn
+// temporal tail varies freely. If prompt composition drifts (someone
+// inserts a block between SITE_DEFINITIONS and the temporal context, or
+// re-titles the section, or removes the blank line) the splitter
+// silently falls through to the "one block, cache the whole thing"
+// path — and Anthropic's prompt cache misses on every single turn at
+// $3/MTok for Sonnet input. This test pins the contract.
+test('prompt: cache-break marker is exactly the form agent.js expects', () => {
+  const p = buildSystemPrompt();
+  const splitMarker = '\n\n[TIME AND MARKET SESSION]';
+  const occurrences = p.split(splitMarker).length - 1;
+  assert.equal(occurrences, 1, `expected exactly one cache-break marker; got ${occurrences}`);
+  const tail = p.slice(p.indexOf(splitMarker) + 2);
+  assert.ok(tail.startsWith('[TIME AND MARKET SESSION]'));
+  assert.ok(tail.includes('Current date and time in New York'));
+});
