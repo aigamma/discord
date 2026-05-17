@@ -257,6 +257,17 @@ per-contract Greeks, and raw bid/ask quotes never leave the data layer.
 The shipped tools respect this boundary by construction; do not modify
 them to return raw chain data.
 
+## Further reading
+
+For deeper context than this README covers:
+
+- **`ARCHITECTURE.md`** — system overview, module map, turn lifecycle, memory model, concurrency, lifecycle/shutdown, observability, retry posture. Start here if you want to understand how every piece fits together.
+- **`DATA_CONTRACTS.md`** — the exact schemas the bot expects from Supabase, Voyage, Anthropic, and DuckDB shards. **Read this before forking** — every column, type, and constraint is a runtime contract. Includes a snap-in guide for mixing your own data layer.
+- **`CLAUDE.md`** — short-form architectural reference. Same shape as `ARCHITECTURE.md`, condensed for a quick orientation.
+- **`SECURITY.md`** — threat model, secrets posture, the three-layer DuckDB defense, prompt-injection scope clamping.
+- **`CONTRIBUTING.md`** — workflow, voice, style rules.
+- **`CHANGELOG.md`** — change history.
+
 ## Production posture
 
 - Structured logger with auto-JSON for piped output (supervisor ingest).
