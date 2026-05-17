@@ -27,6 +27,7 @@ import { execute as searchHistory } from './tools/searchChatHistory.js';
 import { check as checkRateLimit } from './rateLimiter.js';
 import { isReady as duckdbReady, getAttachedShards } from './duckdb.js';
 import { getEmbedderStats } from './embedder.js';
+import { getToolCacheStats } from './tools/index.js';
 import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector.js';
 import { summarize } from './summarize.js';
 import { createProgressReporter } from './progressReporter.js';
@@ -292,7 +293,48 @@ async function handleHealth(interaction) {
       { name: 'DuckDB shards', value: shardSummary, inline: false },
     );
 
+  const cache = getToolCacheStats();
+  embed.addFields({
+    name: 'Tool cache',
+    value: `entries ${cache.entries} · hit rate ${(cache.hit_rate * 100).toFixed(0)}% (${cache.hits} hits / ${cache.misses} misses)`,
+    inline: false,
+  });
+
   await interaction.editReply({ embeds: [embed] });
+}
+
+async function handleAbout(interaction) {
+  const embed = new EmbedBuilder()
+    .setTitle('Strategic Trading Bot')
+    .setColor(0x4a9eff)
+    .setDescription(
+      'Sonnet 4.6 with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for Options Alchemy.'
+    )
+    .addFields(
+      {
+        name: 'Ask',
+        value: '`/ask question:<text> model:<sonnet|opus|haiku>` or `@bot <text>`. The model decides which tools to call.',
+      },
+      {
+        name: 'Live data',
+        value: '`get_vix_family_latest`, `get_iv_percentile`, `get_gex_levels`, `get_spx_term_structure`, `get_stock_history`, `get_gex_history`, `get_realized_correlations`, `get_vrp_history`',
+      },
+      {
+        name: 'Memory and research',
+        value: '`search_chat_history` (semantic recall), `query_duckdb` (multi-year option chains and indicators), web search, web fetch',
+      },
+      {
+        name: 'Commands',
+        value: '`/ask`, `/search`, `/forget`, `/summarize`, `/usage`, `/health`, `/about`. React with 👍/👎 on any reply to flag quality.',
+      },
+      {
+        name: 'Style',
+        value: 'No fluff. No closing hooks. Final sentence declarative. Numbers always sourced from a tool; no invented values.',
+      },
+    )
+    .setFooter({ text: 'Author: Blue (Eric Allione) · github.com/aigamma · MIT licensed' });
+
+  await interaction.reply({ embeds: [embed] });
 }
 
 async function handleAdmin(interaction) {
@@ -341,6 +383,7 @@ async function handleSlashCommand(interaction) {
     case 'health':    return handleHealth(interaction);
     case 'summarize': return handleSummarize(interaction);
     case 'admin':     return handleAdmin(interaction);
+    case 'about':     return handleAbout(interaction);
   }
 }
 

@@ -67,6 +67,10 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('about')
+    .setDescription('What this bot can do')
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('admin')
     .setDescription('Operator-only utilities (owner gated)')
     .addSubcommand((s) =>

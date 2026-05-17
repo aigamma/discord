@@ -50,14 +50,45 @@ const EXECUTORS = Object.fromEntries(
   [...SUPABASE_MODULES, ...MEMORY_MODULES, ...DUCKDB_MODULES].map((m) => [m.spec.name, m.execute])
 );
 
+// Per-tool cache TTL overrides. Tools not listed inherit the default 60s.
+// Live-data surfaces stay short; historical / cross-section surfaces can
+// hold for longer because the underlying tables refresh daily.
+const TOOL_TTLS = {
+  get_gex_levels: 30,
+  get_spx_term_structure: 30,
+  get_vix_family_latest: 300,
+  get_iv_percentile: 300,
+  get_stock_history: 600,
+  get_gex_history: 600,
+  get_realized_correlations: 600,
+  get_vrp_history: 600,
+  search_chat_history: 30,
+  query_duckdb: 60,
+};
+
+import * as toolCache from '../toolCache.js';
+
 export async function executeTool(name, input) {
   const fn = EXECUTORS[name];
   if (!fn) {
     return { error: `Unknown tool: ${name}` };
   }
+  const ttl = TOOL_TTLS[name] ?? 60;
+  if (ttl > 0) {
+    const cached = toolCache.get(name, input);
+    if (cached !== null) return cached;
+  }
   try {
-    return await fn(input || {});
+    const result = await fn(input || {});
+    if (ttl > 0 && !result?.error) {
+      toolCache.set(name, input, result, ttl);
+    }
+    return result;
   } catch (err) {
     return { error: err?.message || String(err) };
   }
+}
+
+export function getToolCacheStats() {
+  return toolCache.stats();
 }
