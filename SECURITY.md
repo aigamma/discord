@@ -50,6 +50,19 @@ The model is not given write access to any data store. The bot writes
 only to its own SQLite (audit log, embeddings) and to the
 `discord_chat_memory` table in Supabase (its own table; no shared writes).
 
+## Prompt-injection-aware tool clamping
+
+The agent forcibly clamps privacy-sensitive tool inputs against the
+caller's actual Discord context BEFORE the tool runs. The
+`search_chat_history` tool input has its `guild_id` overwritten with
+the caller's real `guildId`, and `channel_id` is forced to the
+caller's channel when the call originates in a DM (no guild context).
+A prompt-injected model trying to pass `guild_id: null` to surface
+results from other guilds, or `channel_id: <other channel>` from a
+DM, is overridden at the agent layer before the tool sees the input.
+See `src/agent.js`'s `if (block.name === 'search_chat_history')`
+block.
+
 ## Out of scope
 
 - Denial of service from a Discord user. The per-user rate limit caps
