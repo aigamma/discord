@@ -9,6 +9,7 @@ import { clearAllEmbeddings, recentFeedback } from './memory.js';
 import { reset as resetRateLimit } from './rateLimiter.js';
 import { runBackup } from './backup.js';
 import { clearAllChatMemory, isEnabled as pgvectorEnabled } from './pgvector.js';
+import { clear as clearToolCache } from './toolCache.js';
 
 export function isOwner(userId) {
   return Boolean(config.discord.ownerId) && userId === config.discord.ownerId;
@@ -24,11 +25,15 @@ export async function rebuildEmbeddings() {
       logger.warn('admin: pgvector wipe failed; local resync will produce duplicates until reconciled', { err });
     }
   }
+  // Also flush the tool result cache so search_chat_history's 30-second
+  // TTL doesn't serve stale-corpus results in the window between the
+  // rebuild and the background embedder's first catch-up tick.
+  clearToolCache();
   logger.info('admin: embeddings cleared for rebuild', { cleared, pgvector_cleared: pgvectorCleared });
   return {
     cleared,
     pgvector_cleared: pgvectorCleared,
-    note: 'Background embedder will re-embed and re-sync on the next tick.',
+    note: 'Background embedder will re-embed and re-sync on the next tick. Tool cache flushed.',
   };
 }
 
