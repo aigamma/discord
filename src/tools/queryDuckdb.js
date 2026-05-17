@@ -45,7 +45,7 @@ Curated symbol coverage (lazy-pulled outside this list):
   SPY, QQQ, IWM, DIA, XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLU, XLV, XLY, XLRE (sector ETFs)
   top-11 options-volume single names
 
-Guardrails: SELECT/WITH only, single-statement only, 30-second timeout, 1000-row cap. The bot rejects INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, ATTACH, DETACH, PRAGMA, COPY, EXPORT, IMPORT, TRUNCATE, GRANT, REVOKE, and SET.`,
+Guardrails: SELECT/WITH only, single-statement only, 30-second timeout, 1000-row cap. The bot rejects INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, ATTACH, DETACH, PRAGMA, COPY, EXPORT, IMPORT, TRUNCATE, GRANT, REVOKE, and SET. The connection has external filesystem access disabled, so DuckDB's file-reading table functions (read_csv, read_parquet, read_json, read_text, read_blob, glob, parquet_scan/metadata, load_extension) are refused — only the attached shards are queryable.`,
   input_schema: {
     type: 'object',
     properties: {
