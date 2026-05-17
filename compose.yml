@@ -1,0 +1,29 @@
+# Compose file for the Discord bot. Mounts the SQLite store as a host
+# volume so messages survive container restarts and rebuilds, and reads
+# secrets from .env.local on the host.
+#
+#   docker compose up -d --build
+#   docker compose logs -f bot
+#   docker compose down
+#
+# For DuckDB shard integration, mount the backtester data directory
+# read-only into the container at the same path the bot expects (default
+# /opt/backtester/data) and set BACKTESTER_DATA_DIR in .env.local.
+
+services:
+  bot:
+    build: .
+    image: trading-discord-bot:latest
+    container_name: trading-discord-bot
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    volumes:
+      - ./data:/app/data
+      # Uncomment if you want the bot to read backtester shards from the host:
+      # - /path/to/aigamma-backtester/data:/opt/backtester/data:ro
+    environment:
+      LOG_FORMAT: json
+      # Compose mounts data inside the container at /app/data; override the
+      # default ./data path so the bot writes to the mounted volume.
+      CONVERSATION_DB_PATH: /app/data/conversation.db
