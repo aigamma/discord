@@ -42,7 +42,7 @@ export async function upsertChatMemory(rows) {
     embedding: vecLiteral(r.embedding),
     embedding_model: r.embedding_model || 'voyage-3',
   }));
-  const res = await fetch(`${config.supabase.url}/rest/v1/discord_chat_memory`, {
+  const res = await fetch(`${config.supabase.url}/rest/v1/discord_chat_memory?on_conflict=local_id`, {
     method: 'POST',
     headers: {
       ...headers(),
