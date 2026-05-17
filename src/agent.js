@@ -162,6 +162,11 @@ export async function answer({
   let toolRounds = 0;
   let finalText = '';
 
+  // Cumulative across all rounds so commentary the model emits before a
+  // tool call ("I'll check VIX.") doesn't vanish when the next round
+  // starts streaming. Each round's stream contributes a fresh suffix.
+  let runningText = '';
+
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const stream = await withRetry(async () =>
@@ -174,11 +179,11 @@ export async function answer({
         })
       );
 
-      let accumulatedText = '';
+      const roundStart = runningText;
       stream.on('text', (_delta, snapshot) => {
-        accumulatedText = snapshot;
+        runningText = roundStart + (roundStart && snapshot ? '\n' : '') + snapshot;
         if (onProgress) {
-          try { onProgress(accumulatedText); } catch { /* swallow */ }
+          try { onProgress(runningText); } catch { /* swallow */ }
         }
       });
 
