@@ -247,7 +247,15 @@ async function handleUsage(interaction) {
 
 async function handleSearch(interaction) {
   const query = interaction.options.getString('query', true).trim();
-  const scope = interaction.options.getString('scope') || 'channel';
+  let scope = interaction.options.getString('scope') || 'channel';
+
+  // Privacy: scope=all in a DM would let a user surface hits from other
+  // users' DMs with the bot, which is not intended. Force channel-only
+  // when no guild context is present.
+  if (scope === 'all' && !interaction.guildId) {
+    scope = 'channel';
+  }
+
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const result = await searchHistory({
