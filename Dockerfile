@@ -34,8 +34,9 @@ USER bot
 # Structured logger auto-selects JSON when stdout is not a TTY, which it
 # is not under containerd / Docker. No override needed.
 
-# The bot reads .env.local via --env-file. In containers, mount the env
-# file into /app/.env.local at run time, or pass env vars directly via
-# `docker run -e` / compose `environment:`. The start script handles both
-# because Node's --env-file does not override already-set process.env vars.
-CMD ["node", "--env-file=.env.local", "src/index.js"]
+# Use --env-file-if-exists so containers passing env vars via Docker's
+# native mechanisms (compose env_file at compose-eval time, docker run
+# -e, k8s ConfigMap/Secret) don't fail at startup because /app/.env.local
+# isn't a file. Local-dev startups that DO have a .env.local on disk get
+# the same loading behavior as before.
+CMD ["node", "--env-file-if-exists=.env.local", "src/index.js"]
