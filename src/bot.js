@@ -418,9 +418,9 @@ async function handleAdmin(interaction) {
       const r = await rebuildEmbeddings();
       await interaction.editReply(`Cleared ${r.cleared} embedding(s). ${r.note}`);
     } else if (sub === 'backup') {
-      const r = await triggerBackup();
-      const lines = (r.stdout || []).join('\n') || '(no output)';
-      await interaction.editReply(`Backup ran in ${r.elapsed_ms}ms.\n\`\`\`\n${lines.slice(0, 1700)}\n\`\`\``);
+      const r = triggerBackup();
+      const rotatedNote = r.rotated.length ? ` · rotated ${r.rotated.length} old file(s)` : '';
+      await interaction.editReply(`Backup wrote ${r.mb}MB to \`${r.outPath}\` in ${r.elapsedMs}ms${rotatedNote}.`);
     } else if (sub === 'reset-rate-limit') {
       const target = interaction.options.getString('user', true);
       const r = resetUserRateLimit(target);

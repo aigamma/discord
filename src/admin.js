@@ -3,14 +3,11 @@
 // caller and logs at warn level. No subcommand mutates Discord state; the
 // blast radius is local SQLite + the embedder queue.
 
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { clearAllEmbeddings, recentFeedback } from './memory.js';
 import { reset as resetRateLimit } from './rateLimiter.js';
-
-const execAsync = promisify(exec);
+import { runBackup } from './backup.js';
 
 export function isOwner(userId) {
   return Boolean(config.discord.ownerId) && userId === config.discord.ownerId;
@@ -22,14 +19,15 @@ export async function rebuildEmbeddings() {
   return { cleared, note: 'Background embedder will re-embed on the next tick.' };
 }
 
-export async function triggerBackup() {
-  const t0 = Date.now();
-  const { stdout, stderr } = await execAsync('node --env-file=.env.local scripts/backup-db.js');
-  return {
-    elapsed_ms: Date.now() - t0,
-    stdout: stdout.split('\n').filter(Boolean).slice(-3),
-    stderr: stderr ? stderr.slice(0, 400) : null,
-  };
+export function triggerBackup() {
+  const r = runBackup({});
+  logger.info('admin: backup', {
+    out_path: r.outPath,
+    mb: r.mb,
+    elapsed_ms: r.elapsedMs,
+    rotated: r.rotated.length,
+  });
+  return r;
 }
 
 export function resetUserRateLimit(userId) {
