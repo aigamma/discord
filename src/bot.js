@@ -558,39 +558,64 @@ async function handleAbout(interaction) {
     .replace(/-(\d+)-(\d+)/, ' $1.$2')
     .replace(/-\d{8}$/, '')
     .replace(/^(\w)/, (m) => m.toUpperCase());
+
+  // Compose surfaces dynamically from actual configuration so a forker
+  // running without Supabase doesn't see live-data tools advertised
+  // that don't actually exist. Matches the gating in tools/index.js.
+  const surfaces = [];
+  if (config.supabase.enabled) surfaces.push('live market data');
+  if (config.voyage.enabled) surfaces.push('persisted chat memory');
+  if (duckdbReady()) surfaces.push('multi-year DuckDB shards');
+  const surfaceText = surfaces.length
+    ? `tool-use access to ${surfaces.join(', ')}`
+    : 'tool-free conversational mode';
+
   const embed = new EmbedBuilder()
     .setTitle('Strategic Trading Bot')
     .setColor(0x4a9eff)
     .setDescription(
-      `${modelLabel} with tool-use access to live market data, persisted chat memory, and the aigamma-backtester DuckDB shards. Engineered for ${config.operator.communityName}.`
+      `${modelLabel} with ${surfaceText}. Engineered for ${config.operator.communityName}.`
     )
     .addFields(
       {
         name: 'Ask',
         value: '`/ask question:<text> model:<sonnet|opus|haiku>` or `@bot <text>`. The model decides which tools to call.',
       },
-      {
-        name: 'Live data',
-        value: '`get_vix_family_latest`, `get_iv_percentile`, `get_gex_levels`, `get_spx_term_structure`, `get_stock_history`, `get_gex_history`, `get_realized_correlations`, `get_vrp_history`',
-      },
-      {
-        name: 'Memory and research',
-        value: '`search_chat_history` (semantic recall), `query_duckdb` (multi-year option chains and indicators), web search, web fetch',
-      },
-      {
-        name: 'Commands',
-        value: '`/ask`, `/search`, `/forget`, `/summarize`, `/usage`, `/health`, `/about`, `/export`. React with 👍/👎 on any reply to flag quality.',
-      },
-      {
-        name: 'Personal context',
-        value: '`/remember note:<text>` saves a persistent note about you that the bot surfaces on every future turn. `/notes` lists them, `/forget-note number:<n>` removes a single note, `/forget-notes` clears them all. Cap of 12 notes × 280 chars.',
-      },
-      {
-        name: 'Style',
-        value: 'No fluff. No closing hooks. Final sentence declarative. Numbers always sourced from a tool; no invented values.',
-      },
-    )
-    .setFooter({ text: `Author: ${config.operator.handle} (${config.operator.name}) · MIT licensed` });
+    );
+
+  if (config.supabase.enabled) {
+    embed.addFields({
+      name: 'Live data',
+      value: '`get_vix_family_latest`, `get_iv_percentile`, `get_gex_levels`, `get_spx_term_structure`, `get_stock_history`, `get_gex_history`, `get_realized_correlations`, `get_vrp_history`',
+    });
+  }
+
+  // Memory + research surfaces conditionally — only list tools whose
+  // backend is actually configured. Same gating as tools/index.js.
+  const memoryItems = [];
+  if (config.voyage.enabled) memoryItems.push('`search_chat_history` (semantic recall)');
+  if (duckdbReady()) memoryItems.push('`query_duckdb` (multi-year option chains and indicators)');
+  if (config.anthropic.webSearchEnabled) memoryItems.push('web search');
+  if (config.anthropic.webFetchEnabled) memoryItems.push('web fetch');
+  if (memoryItems.length) {
+    embed.addFields({ name: 'Memory and research', value: memoryItems.join(', ') });
+  }
+
+  embed.addFields(
+    {
+      name: 'Commands',
+      value: '`/ask`, `/search`, `/forget`, `/summarize`, `/usage`, `/health`, `/about`, `/export`. React with 👍/👎 on any reply to flag quality.',
+    },
+    {
+      name: 'Personal context',
+      value: '`/remember note:<text>` saves a persistent note about you that the bot surfaces on every future turn. `/notes` lists them, `/forget-note number:<n>` removes a single note, `/forget-notes` clears them all. Cap of 12 notes × 280 chars.',
+    },
+    {
+      name: 'Style',
+      value: 'No fluff. No closing hooks. Final sentence declarative. Numbers always sourced from a tool; no invented values.',
+    },
+  );
+  embed.setFooter({ text: `Author: ${config.operator.handle} (${config.operator.name}) · MIT licensed` });
 
   await interaction.reply({ embeds: [embed] });
 }
