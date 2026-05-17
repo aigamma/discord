@@ -65,6 +65,14 @@ function accumulateUsage(acc, usage) {
   acc.output_tokens += usage.output_tokens || 0;
   acc.cache_creation_input_tokens += usage.cache_creation_input_tokens || 0;
   acc.cache_read_input_tokens += usage.cache_read_input_tokens || 0;
+  // Server-tool counts (currently web_search_requests). Accumulate per key
+  // so a multi-round turn with searches in multiple rounds bills correctly.
+  if (usage.server_tool_use && typeof usage.server_tool_use === 'object') {
+    acc.server_tool_use ??= {};
+    for (const [k, v] of Object.entries(usage.server_tool_use)) {
+      if (Number.isFinite(v)) acc.server_tool_use[k] = (acc.server_tool_use[k] || 0) + v;
+    }
+  }
   return acc;
 }
 
