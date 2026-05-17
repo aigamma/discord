@@ -90,3 +90,21 @@ test('ivPercentile: rejects when no usable IV rows in the window', async () => {
     restore();
   }
 });
+
+test('ivPercentile: null spx_close on the latest IV row surfaces as null', async () => {
+  // ivRows filters on iv_30d_cm only — if the row that becomes `latest`
+  // has a valid IV but null spx_close (mid-ingest race), Number(null)
+  // would have surfaced as 'SPX at 0'. Must report null.
+  const rows = [
+    { trading_date: daysAgo(2), spx_close: 5000, hv_20d_yz: 0.18, iv_30d_cm: 0.15 },
+    { trading_date: daysAgo(1), spx_close: null, hv_20d_yz: 0.18, iv_30d_cm: 0.16 },
+  ];
+  const restore = stubFetch(async () => rows);
+  try {
+    const r = await execute({ lookback_days: 30 });
+    assert.equal(r.spx_close, null, 'null close must not coerce to 0');
+    assert.equal(r.iv_30d_cm, 0.16);
+  } finally {
+    restore();
+  }
+});

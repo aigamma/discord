@@ -64,7 +64,12 @@ export async function execute({ lookback_days = 252 } = {}) {
 
   return {
     as_of: latest.trading_date,
-    spx_close: Number(latest.spx_close),
+    // ivRows filters on iv_30d_cm only — spx_close can be null on a
+    // row that otherwise passed the IV check. Number(null) === 0 was
+    // reporting 'SPX closed at 0' on those days.
+    spx_close: latest.spx_close != null && Number.isFinite(Number(latest.spx_close))
+      ? Number(latest.spx_close)
+      : null,
     iv_30d_cm: ivNow,
     hv_20d_yz: hvNow,
     variance_risk_premium: hvNow != null ? +(ivNow - hvNow).toFixed(4) : null,
