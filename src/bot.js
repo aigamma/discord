@@ -507,7 +507,11 @@ async function handleAbout(interaction) {
       },
       {
         name: 'Commands',
-        value: '`/ask`, `/search`, `/forget`, `/summarize`, `/usage`, `/health`, `/about`. React with 👍/👎 on any reply to flag quality.',
+        value: '`/ask`, `/search`, `/forget`, `/summarize`, `/usage`, `/health`, `/about`, `/export`. React with 👍/👎 on any reply to flag quality.',
+      },
+      {
+        name: 'Personal context',
+        value: '`/remember note:<text>` saves a persistent note about you that the bot surfaces on every future turn. `/notes` lists them, `/forget-notes` clears them. Cap of 12 notes × 280 chars.',
       },
       {
         name: 'Style',
