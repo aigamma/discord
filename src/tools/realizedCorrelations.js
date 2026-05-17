@@ -35,17 +35,29 @@ export const spec = {
 
 function pearson(a, b) {
   if (a.length !== b.length || a.length < 3) return null;
-  const n = a.length;
+  // Drop pairs where either side is non-finite (a bad close back-propagated
+  // as NaN through logReturnsFromCloses). Without this, NaN propagates
+  // through every sum and the caller's "is it a number" check (c == null)
+  // misses, polluting sumPair/nPair and producing a NaN average that
+  // JSON-renders to null but breaks the sort comparator on the pair list.
+  let n = 0;
   let sa = 0, sb = 0;
-  for (let i = 0; i < n; i++) { sa += a[i]; sb += b[i]; }
+  for (let i = 0; i < a.length; i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) continue;
+    sa += a[i]; sb += b[i]; n++;
+  }
+  if (n < 3) return null;
   const ma = sa / n, mb = sb / n;
   let num = 0, da = 0, db = 0;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < a.length; i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) continue;
     const x = a[i] - ma, y = b[i] - mb;
     num += x * y; da += x * x; db += y * y;
   }
   const denom = Math.sqrt(da * db);
-  return denom === 0 ? null : num / denom;
+  if (denom === 0 || !Number.isFinite(denom)) return null;
+  const r = num / denom;
+  return Number.isFinite(r) ? r : null;
 }
 
 function logReturnsFromCloses(closes) {
@@ -112,8 +124,13 @@ export async function execute({ symbols = null, lookback_days = 60 } = {}) {
   for (let i = 0; i < basket.length; i++) {
     for (let j = i + 1; j < basket.length; j++) {
       const c = pearson(returns[basket[i]], returns[basket[j]]);
-      upperTriangle.push({ a: basket[i], b: basket[j], corr: c == null ? null : +c.toFixed(3) });
-      if (c != null) { sumPair += c; nPair++; }
+      // pearson returns null on insufficient data or NaN propagation;
+      // Number.isFinite is the load-bearing check (c == null is false
+      // for NaN, so a stricter test is needed before pushing into the
+      // running average).
+      const valid = c !== null && Number.isFinite(c);
+      upperTriangle.push({ a: basket[i], b: basket[j], corr: valid ? +c.toFixed(3) : null });
+      if (valid) { sumPair += c; nPair++; }
     }
   }
   upperTriangle.sort((a, b) => (b.corr ?? -2) - (a.corr ?? -2));

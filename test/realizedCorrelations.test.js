@@ -96,3 +96,35 @@ test('realizedCorrelations: produces an upper-triangle pair list', async () => {
     restore();
   }
 });
+
+test('realizedCorrelations: a constant series produces null corr, not NaN', async () => {
+  // Constant close for one symbol means zero variance -> denom = 0 in
+  // pearson(). Before the audit fix, the caller's `c != null` check
+  // accepted NaN (NaN != null is true) and polluted the running average
+  // with NaN forever. Now: pearson returns null, the pair is reported
+  // as null, the average is computed from the remaining valid pairs.
+  const rows = [];
+  const startMs = Date.now() - 29 * 86400 * 1000;
+  for (let d = 0; d < 30; d++) {
+    const date = new Date(startMs + d * 86400 * 1000).toISOString().slice(0, 10);
+    rows.push({ symbol: 'XLB', trading_date: date, close: 100 + d * 0.5 });
+    rows.push({ symbol: 'XLK', trading_date: date, close: 100 + d * 0.3 });
+    rows.push({ symbol: 'XLF', trading_date: date, close: 100 }); // constant
+  }
+  const restore = stubFetch(async () => rows);
+  try {
+    const r = await execute({ symbols: ['XLB', 'XLK', 'XLF'], lookback_days: 30 });
+    // Any pair involving XLF should have corr === null (zero variance).
+    const xlfPairs = r.pairs.filter((p) => p.a === 'XLF' || p.b === 'XLF');
+    assert.ok(xlfPairs.length >= 1);
+    for (const p of xlfPairs) {
+      assert.equal(p.corr, null, `expected null for ${p.a}-${p.b}, got ${p.corr}`);
+    }
+    // Average must be a finite number derived from the non-null pairs,
+    // never NaN-rendered-as-null.
+    assert.ok(Number.isFinite(r.average_pairwise_corr),
+      `expected finite avg, got ${r.average_pairwise_corr}`);
+  } finally {
+    restore();
+  }
+});
