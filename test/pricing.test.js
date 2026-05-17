@@ -54,3 +54,32 @@ test('pricing: missing token fields treated as zero', () => {
   // 500 * 3 / 1M = 0.0015
   assert.equal(cost, 0.0015);
 });
+
+test('pricing: web_search server-tool calls billed at $10/1000', () => {
+  const cost = priceUsage('claude-sonnet-4-6', {
+    input_tokens: 0,
+    output_tokens: 0,
+    server_tool_use: { web_search_requests: 3 },
+  });
+  // 3 * 0.01 = 0.03
+  assert.equal(cost, 0.03);
+});
+
+test('pricing: web_search adds to model token cost', () => {
+  const cost = priceUsage('claude-sonnet-4-6', {
+    input_tokens: 1000,
+    output_tokens: 200,
+    server_tool_use: { web_search_requests: 2 },
+  });
+  // 1000*3/1M + 200*15/1M + 2*0.01 = 0.003 + 0.003 + 0.02 = 0.026
+  assert.equal(cost, 0.026);
+});
+
+test('pricing: unknown server_tool keys ignored, not crashed', () => {
+  const cost = priceUsage('claude-sonnet-4-6', {
+    input_tokens: 0,
+    output_tokens: 0,
+    server_tool_use: { mystery_tool_calls: 5 },
+  });
+  assert.equal(cost, 0);
+});
