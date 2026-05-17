@@ -7,9 +7,28 @@
 // SQLite path; the production deployment gets HNSW.
 
 import { embed, blobToVec, cosineSimilarity, isEnabled as voyageEnabled } from '../embeddings.js';
-import { iterEmbeddedUserMessages, getAssistantResponseFor } from '../memory.js';
+import { iterEmbeddedUserMessages, getAssistantResponseFor, findAssistantMessage } from '../memory.js';
 import { searchChatMemoryRpc, isEnabled as pgvectorEnabled } from '../pgvector.js';
 import { config } from '../config.js';
+import { db } from '../db.js';
+
+// Build a Discord deep-link to a persisted message when we have all three
+// ids. Without guild_id the link points at the DM channel. Without
+// discord_message_id (which is only attached after the reply is sent) we
+// can't link at all.
+const selectMessageIds = db.prepare(`
+  SELECT guild_id, channel_id, discord_message_id
+  FROM messages
+  WHERE id = ?
+  LIMIT 1
+`);
+
+function buildDiscordUrl(localId) {
+  const row = selectMessageIds.get(localId);
+  if (!row || !row.discord_message_id) return null;
+  const guildPart = row.guild_id || '@me';
+  return `https://discord.com/channels/${guildPart}/${row.channel_id}/${row.discord_message_id}`;
+}
 
 export const spec = {
   name: 'search_chat_history',
@@ -50,6 +69,7 @@ async function searchPgvector(queryVec, k, minSim, channelId) {
     channel_id: r.channel_id,
     question: r.content,
     reply: r.reply_content || null,
+    discord_url: buildDiscordUrl(r.local_id),
   }));
 }
 
@@ -76,6 +96,7 @@ function searchSqliteFallback(queryVec, k, minSim, channelId) {
         channel_id: row.channel_id,
         question: row.content,
         reply: reply?.content || null,
+        discord_url: buildDiscordUrl(row.id),
       };
     }),
     scanned,

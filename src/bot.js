@@ -181,7 +181,14 @@ async function handleUsage(interaction) {
   if (data.by_model.length) {
     embed.addFields({
       name: 'By model',
-      value: data.by_model.map((m) => `\`${m.model}\` — ${m.turns} turns, ${formatUsd(m.cost_usd)}`).join('\n'),
+      value: data.by_model.map((m) => `\`${m.model}\` ${m.turns} turns, ${formatUsd(m.cost_usd)}`).join('\n'),
+    });
+  }
+
+  if (data.by_tool.length) {
+    embed.addFields({
+      name: 'By tool',
+      value: data.by_tool.slice(0, 10).map((t) => `\`${t.tool}\` ${t.calls}`).join('\n'),
     });
   }
 
@@ -215,12 +222,14 @@ async function handleSearch(interaction) {
 
   for (const h of result.hits.slice(0, 5)) {
     const when = new Date(h.asked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const headerSuffix = h.discord_url ? ` · [jump](${h.discord_url})` : '';
     embed.addFields({
       name: `${h.asked_by} · ${when} · sim ${h.similarity}`,
       value: [
         `> ${h.question.slice(0, 200)}`,
         h.reply ? h.reply.slice(0, 600) : '_(no reply persisted)_',
-      ].join('\n'),
+        headerSuffix ? `${headerSuffix}` : '',
+      ].filter(Boolean).join('\n'),
     });
   }
 

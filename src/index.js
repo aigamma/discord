@@ -7,15 +7,18 @@ import { config } from './config.js';
 import { startBackgroundEmbedder, stopBackgroundEmbedder } from './embedder.js';
 import { initDuckDB, closeDuckDB } from './duckdb.js';
 import { installLifecycle } from './lifecycle.js';
+import { startHealthServer, stopHealthServer } from './healthServer.js';
 import { logger } from './logger.js';
 
 await initDuckDB();
 const client = buildClient();
 startBackgroundEmbedder();
+startHealthServer();
 
 installLifecycle({
   onShutdown: async () => {
     stopBackgroundEmbedder();
+    await stopHealthServer().catch(() => {});
     await closeDuckDB().catch(() => {});
     await client.destroy().catch(() => {});
   },

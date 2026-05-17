@@ -361,12 +361,33 @@ const selectUsageByModel = db.prepare(`
   ORDER BY cost_usd DESC
 `);
 
+// Tool-use counts from the assistant message rows' tool_uses JSON. Uses
+// SQLite's json_each(); slow on huge stores but the audit window is small
+// and the join is on the indexed time range.
+const selectToolUseCounts = db.prepare(`
+  SELECT j.value->>'name' AS tool, COUNT(*) AS calls
+  FROM messages m, json_each(m.tool_uses) j
+  WHERE m.role = 'assistant'
+    AND m.tool_uses IS NOT NULL
+    AND m.created_at >= ?
+  GROUP BY tool
+  ORDER BY calls DESC
+`);
+
 export function usageSummary(hours = 24) {
   const since = Date.now() - hours * 3600 * 1000;
+  let byTool = [];
+  try {
+    byTool = selectToolUseCounts.all(since);
+  } catch {
+    // SQLite versions without json_each will just return empty. Not fatal.
+    byTool = [];
+  }
   return {
     window_hours: hours,
     total: selectUsageSummary.get(since),
     by_user: selectUsageByUser.all(since),
     by_model: selectUsageByModel.all(since),
+    by_tool: byTool,
   };
 }
