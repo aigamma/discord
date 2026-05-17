@@ -103,6 +103,8 @@ export async function answer({
   isMultiUser = false,
   userMessage,
   modelOverride = null,
+  onProgress = null,
+  onToolStart = null,
 }) {
   if (isShuttingDown()) {
     throw new Error('Bot is shutting down; new requests refused.');
@@ -131,14 +133,25 @@ export async function answer({
 
   try {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await withRetry(() => client.messages.create({
-        model,
-        max_tokens: config.anthropic.maxTokens,
-        system: systemBlocks,
-        tools,
-        messages,
-      }));
+      const stream = await withRetry(async () =>
+        client.messages.stream({
+          model,
+          max_tokens: config.anthropic.maxTokens,
+          system: systemBlocks,
+          tools,
+          messages,
+        })
+      );
 
+      let accumulatedText = '';
+      stream.on('text', (_delta, snapshot) => {
+        accumulatedText = snapshot;
+        if (onProgress) {
+          try { onProgress(accumulatedText); } catch { /* swallow */ }
+        }
+      });
+
+      const response = await stream.finalMessage();
       accumulateUsage(usage, response.usage);
       stopReason = response.stop_reason;
 
@@ -155,6 +168,10 @@ export async function answer({
       messages.push({ role: 'assistant', content: response.content });
 
       const toolUseBlocks = response.content.filter((b) => b.type === 'tool_use');
+      if (onToolStart && toolUseBlocks.length > 0) {
+        try { onToolStart(toolUseBlocks.map((b) => b.name)); } catch { /* swallow */ }
+      }
+
       const toolResults = [];
       for (const block of toolUseBlocks) {
         allToolUses.push({ name: block.name, input: block.input, round });

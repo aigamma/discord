@@ -29,6 +29,7 @@ import { isReady as duckdbReady, getAttachedShards } from './duckdb.js';
 import { getEmbedderStats } from './embedder.js';
 import { checkPgvectorReachable, isEnabled as pgvectorEnabled } from './pgvector.js';
 import { summarize } from './summarize.js';
+import { createProgressReporter } from './progressReporter.js';
 import { logger } from './logger.js';
 
 const MODEL_CHOICES = {
@@ -98,6 +99,10 @@ async function handleAsk(interaction) {
   }
 
   await interaction.deferReply();
+  const reporter = createProgressReporter({
+    editText: (text) => interaction.editReply(text),
+    label: 'ask',
+  });
   try {
     const result = await answer({
       channelId: interaction.channelId,
@@ -107,12 +112,13 @@ async function handleAsk(interaction) {
       isMultiUser: isMultiUserChannel(interaction.channel),
       userMessage: question,
       modelOverride,
+      onProgress: (text) => reporter.update(text),
+      onToolStart: (names) => reporter.note(`_calling: ${names.join(', ')}_`),
     });
     const text = result.text || '_(no response)_';
     const parts = chunk(text);
-    const sentReply = await interaction.editReply(parts[0]);
-    // The first reply carries the assistant's Discord message id. Attach
-    // it to the persisted row so reaction feedback can find this turn.
+    await reporter.finalize(parts[0]);
+    const sentReply = await interaction.fetchReply().catch(() => null);
     if (result.assistantMessageId && sentReply?.id) {
       attachDiscordMessageId(result.assistantMessageId, sentReply.id);
     }
@@ -324,6 +330,18 @@ async function handleMention(message, clientId) {
 
   await message.channel.sendTyping().catch(() => {});
 
+  // Seed an initial reply so subsequent stream updates can edit it. The
+  // placeholder is replaced on the first progress tick.
+  const sent = await message.reply('_…_').catch(() => null);
+  if (!sent) {
+    await message.reply('Something went wrong sending the reply seed.').catch(() => {});
+    return;
+  }
+  const reporter = createProgressReporter({
+    editText: (text) => sent.edit(text),
+    label: 'mention',
+  });
+
   try {
     const result = await answer({
       channelId: message.channelId,
@@ -333,11 +351,13 @@ async function handleMention(message, clientId) {
       discordMessageId: message.id,
       isMultiUser: isMultiUserChannel(message.channel),
       userMessage: question,
+      onProgress: (text) => reporter.update(text),
+      onToolStart: (names) => reporter.note(`_calling: ${names.join(', ')}_`),
     });
     const text = result.text || '_(no response)_';
     const parts = chunk(text);
-    const sent = await message.reply(parts[0]);
-    if (result.assistantMessageId && sent?.id) {
+    await reporter.finalize(parts[0]);
+    if (result.assistantMessageId) {
       attachDiscordMessageId(result.assistantMessageId, sent.id);
     }
     for (let i = 1; i < parts.length; i++) {
@@ -345,7 +365,7 @@ async function handleMention(message, clientId) {
     }
   } catch (err) {
     logger.error('mention handler failed', { err, user_id: message.author.id });
-    await message.reply(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
+    await sent.edit(`Something went wrong: \`${err?.message || err}\``).catch(() => {});
   }
 }
 
