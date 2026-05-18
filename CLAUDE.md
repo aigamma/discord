@@ -23,11 +23,21 @@ substantive work on the repo.
 | `/ask question:<text> model:<sonnet\|opus\|haiku>?` | Full agent turn | Tool-use enabled, 8 rounds max |
 | `/forget` | Clears short-term context | Channel-scoped |
 | `/usage hours:<n>?` | Cost/token/latency summary | Ephemeral; default 24h |
-| `/search query:<text> scope:<channel\|all>?` | Semantic recall | pgvector → SQLite fallback |
+| `/search query:<text> scope:<channel\|all>? limit:<n>?` | Semantic recall | pgvector → SQLite fallback |
 | `/health` | Subsystem state | Ephemeral |
 | `/summarize messages:<n>?` | Brief of recent channel | Default 100 messages |
+| `/whoami` | Self-introspection card | Ephemeral; activity + notes + feedback given |
+| `/stats hours:<n>?` | Channel-level usage snapshot | Public reply; default 168h |
+| `/help` | Compact command reference | Ephemeral; operator surface appended for owner |
+| `/about` | Capability tour | Public reply |
+| `/remember`, `/notes`, `/forget-note`, `/forget-notes` | Per-user persistent notes | Cap 12 × 280 chars |
+| `/export` | Channel Q&A as JSON | Ephemeral; 24MB attachment cap |
+| `/admin <sub>` | Owner-gated utilities | rebuild-embeddings, backup, reset-rate-limit, feedback |
 | `@bot <text>` | Mention invocation | Same agent path as /ask |
 | 👍 / 👎 reaction | Feedback capture | Stored to `feedback` table |
+
+The exhaustive reference (every option, every constraint, ephemeral/public
+semantics, owner gating) lives in `docs/COMMANDS.md`.
 
 ## Agent loop
 
@@ -259,9 +269,35 @@ them to return raw chain data.
 ## Forking guidance
 
 `src/prompt.js OPERATOR_IDENTITY` is the per-deployment identity block;
-fork operators should swap their own identity in place. `src/tools/` is
-the pluggable surface — replace the Supabase-backed modules with your
-own data tools, keep `searchChatHistory.js` and `queryDuckdb.js` as
-optional layers, update `src/prompt.js` TOOLS_BLOCK if your tool catalog
-diverges. The Discord wiring, agent loop, memory layer, observability,
-and lifecycle are domain-agnostic and need no changes for a fork.
+fork operators should swap their own identity in place via the
+`OPERATOR_HANDLE`, `OPERATOR_NAME`, `COMMUNITY_NAME` env vars rather
+than editing source. `src/tools/` is the pluggable surface — replace
+the Supabase-backed modules with your own data tools, keep
+`searchChatHistory.js` and `queryDuckdb.js` as optional layers, update
+`src/prompt.js` TOOLS_BLOCK if your tool catalog diverges. The Discord
+wiring, agent loop, memory layer, observability, and lifecycle are
+domain-agnostic and need no changes for a fork.
+
+For the step-by-step hookup walkthrough see `docs/DATA_SETUP.md`.
+
+## Where to find more
+
+This file is the short-form architectural reference. Per-surface
+sources of truth live under `docs/` and at the top level:
+
+| You need | Look at |
+|---|---|
+| Long-form architecture and turn lifecycle | `ARCHITECTURE.md` |
+| External schema contracts (Supabase, DuckDB, Voyage, Anthropic) | `DATA_CONTRACTS.md` |
+| Step-by-step data hookup for a fresh deployment | `docs/DATA_SETUP.md` |
+| Operational runbook + incident playbooks | `docs/OPERATIONS.md` |
+| Every environment variable | `docs/CONFIG.md` |
+| Every slash command and its constraints | `docs/COMMANDS.md` |
+| Every model-callable tool | `docs/TOOLS.md` |
+| Schema migrations (SQLite + pgvector) | `docs/MIGRATIONS.md` |
+| Testing conventions and what the suite already pins | `docs/TESTING.md` |
+| Examples of bot output | `docs/EXAMPLES.md` |
+| Orientation for AI agents working on this repo | `AGENTS.md` |
+| Threat model + the three-layer DuckDB defense | `SECURITY.md` |
+| Workflow, voice, style | `CONTRIBUTING.md` |
+| Change history | `CHANGELOG.md` |

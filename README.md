@@ -272,6 +272,8 @@ For deeper context than this README covers:
 - **`docs/TOOLS.md`** — tool catalog reference: every model-callable tool with input schema, output shape, gating, and cache TTL.
 - **`docs/DATA_SETUP.md`** — step-by-step hookup guide: Discord → Anthropic → Voyage → Supabase (market data + pgvector) → DuckDB shards, with end-to-end verification.
 - **`docs/OPERATIONS.md`** — runbook for daily operations and incident response, keyed on observable symptoms from `/health`, `/usage`, and the logs.
+- **`docs/MIGRATIONS.md`** — schema evolution reference: SQLite migration semantics, pgvector migration ordering, the do's and don'ts of changing the schema safely.
+- **`docs/TESTING.md`** — testing conventions: the env stubs, per-process tmp SQLite stores, static check via `node --check`, and the contracts the existing suite pins.
 - **`docs/EXAMPLES.md`** — illustrative bot output across live-market, memory-recall, and refusal scenarios.
 - **`CLAUDE.md`** — short-form architectural reference. Same shape as `ARCHITECTURE.md`, condensed for a quick orientation.
 - **`SECURITY.md`** — threat model, secrets posture, the three-layer DuckDB defense, prompt-injection scope clamping.

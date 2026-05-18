@@ -5,6 +5,53 @@ first within each section. Versioning is incremental; pre-1.0 only.
 
 ## Unreleased
 
+### Documentation
+- `AGENTS.md` — fresh-agent orientation. Names the touch-sensitive
+  surfaces (the prompt audit, the duckdb guard, the cache breakpoints,
+  the privacy clamp) and points at the per-surface source-of-truth
+  docs introduced in this batch.
+- `docs/CONFIG.md` — environment-variable reference: every key the bot
+  reads with type, default, range, and downstream effect. Lists the
+  intentionally-non-configurable constants so a future agent doesn't
+  hunt for env knobs that don't exist.
+- `docs/COMMANDS.md` — Discord command surface reference: every slash
+  command, the mention surface, the reaction-feedback path.
+- `docs/TOOLS.md` — model-callable tool catalog: gating, input schema,
+  output shape, cache TTL, and the privacy clamp.
+- `docs/OPERATIONS.md` — operator runbook: day-zero deployment, daily
+  ops, incident playbooks keyed on observable symptoms, forensic SQL.
+- `docs/DATA_SETUP.md` — step-by-step hookup guide. The runbook
+  companion to `DATA_CONTRACTS.md`.
+- `docs/MIGRATIONS.md` — schema evolution reference (SQLite + pgvector).
+- `docs/TESTING.md` — testing conventions, env stubs, tmp SQLite
+  pattern, and a catalog of contracts the existing suite already pins.
+- `CLAUDE.md` invocation surfaces table picks up the new commands and
+  links to the per-surface SoT docs. README's "Further reading"
+  picks up the new docs/.
+
+### Added
+- `/help` — compact ephemeral command reference; distinct from `/about`
+  (the marketing tour). Operator surface (`/admin` subcommands) is
+  appended only when the caller is the owner.
+- `/whoami` — self-introspection card. The caller sees their own
+  last-turn timestamp, 24h/7d/30d turn counts and cost, feedback
+  they gave (up/down counts over 7d), daily-cap headroom, and their
+  saved notes rendered in the same shape as `/notes`. Strictly
+  read-only and scoped to the caller.
+- `/stats hours:<n>?` — channel-level usage snapshot. Turns, distinct
+  askers, cost, average latency, total tokens, top askers (rendered
+  as no-ping mentions), top tools. Public reply because the data is
+  channel-scoped — no per-user spend leaks.
+- Two new memory helpers backing the data-driven commands:
+  `userActivitySummary(userId, hours)` scopes activity to one user
+  (in contrast to `usageSummary` which is server-wide); `channelStats
+  (channelId, hours)` rolls up channel-scoped totals and pushes the
+  channel filter into SQL before `json_each` fans out the tool-uses
+  array.
+- Four new memory tests pin the privacy-isolation contracts: a user
+  can't see another user's activity, a channel can't see another
+  channel's turns.
+
 ### Correctness
 - System prompt's market-session label honors the 2026-2027 NYSE
   holiday calendar plus the three early-close days (day before

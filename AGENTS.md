@@ -327,6 +327,8 @@ These rules exist because the alternative cost real time in the past.
 | How a turn flows end-to-end | `ARCHITECTURE.md > Turn lifecycle` |
 | How memory is modeled (short-term, long-term, user notes) | `ARCHITECTURE.md > Memory model` |
 | What the lifecycle/drain semantics are | `src/lifecycle.js` + `ARCHITECTURE.md > Lifecycle` |
+| How to add or evolve a schema migration safely | `docs/MIGRATIONS.md` |
+| How the test suite is structured and what it pins | `docs/TESTING.md` |
 | How to debug a misbehaving production instance | `docs/OPERATIONS.md` |
 | How to wire the bot to a brand-new Supabase / DuckDB / Voyage setup | `docs/DATA_SETUP.md` |
 | Why a specific safety guard exists | `SECURITY.md` |
