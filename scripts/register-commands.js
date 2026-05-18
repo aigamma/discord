@@ -16,9 +16,9 @@ const commands = [
     .addStringOption((opt) =>
       opt
         .setName('model')
-        .setDescription('Override the model for this single turn (default sonnet)')
+        .setDescription('Override the model for this turn (else uses your /model preference or the server default)')
         .addChoices(
-          { name: 'Sonnet 4.6 (default, fast)', value: 'sonnet' },
+          { name: 'Sonnet 4.6 (fast)', value: 'sonnet' },
           { name: 'Opus 4.7 (deeper reasoning, 5x cost)', value: 'opus' },
           { name: 'Haiku 4.5 (fastest, cheapest)', value: 'haiku' }
         )
