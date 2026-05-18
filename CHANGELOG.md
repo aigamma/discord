@@ -30,6 +30,15 @@ first within each section. Versioning is incremental; pre-1.0 only.
   picks up the new docs/.
 
 ### Added
+- `/model show|set|clear` — per-user default model preference. Saved
+  per Discord user id in the new `user_preferences` table (migration
+  010). Stored as a short label (sonnet|opus|haiku) rather than the
+  full model id so a future model-version bump does not require
+  migrating saved preferences. Resolution order on every /ask and
+  @mention: explicit /ask model: override → saved preference → server
+  default. Ephemeral; personal config. Four new memory tests pin the
+  roundtrip, invalid-label rejection, cross-user isolation, and
+  null/empty user-id handling.
 - `/help` — compact ephemeral command reference; distinct from `/about`
   (the marketing tour). Operator surface (`/admin` subcommands) is
   appended only when the caller is the owner.

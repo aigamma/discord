@@ -249,6 +249,7 @@ Tables:
 | `feedback` | 👍/👎 reactions on assistant messages. `UNIQUE(assistant_message_id, user_id)` so a user's vote replaces, not appends. |
 | `user_notes` | Per-user persistent context (`/remember`). |
 | `channel_cutoffs` | Non-destructive `/forget` cutoffs per channel. Older messages stay searchable but don't load into short-term context. |
+| `user_preferences` | Per-user `/model` preference (one row per user). Stores a short label (`sonnet`/`opus`/`haiku`) rather than the full model id; resolved at runtime via `MODEL_CHOICES` in `src/bot.js`. |
 | `schema_meta` | Migration tracker. |
 
 Indexes:

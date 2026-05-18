@@ -28,6 +28,7 @@ substantive work on the repo.
 | `/summarize messages:<n>?` | Brief of recent channel | Default 100 messages |
 | `/whoami` | Self-introspection card | Ephemeral; activity + notes + feedback given |
 | `/stats hours:<n>?` | Channel-level usage snapshot | Public reply; default 168h |
+| `/model show\|set\|clear` | Per-user model preference | Ephemeral; per-turn /ask override always wins |
 | `/help` | Compact command reference | Ephemeral; operator surface appended for owner |
 | `/about` | Capability tour | Public reply |
 | `/remember`, `/notes`, `/forget-note`, `/forget-notes` | Per-user persistent notes | Cap 12 × 280 chars |

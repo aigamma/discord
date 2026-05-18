@@ -193,6 +193,22 @@ const migrations = [
         ON turns(user_id, created_at DESC);
     `,
   },
+  {
+    name: '010_user_preferences',
+    sql: `
+      -- Per-user model preference for /ask and @mention. Stored as a
+      -- short label (sonnet|opus|haiku) rather than the full model id
+      -- so a future model-version bump (e.g. sonnet-4.6 → sonnet-4.7)
+      -- does not require migrating every saved preference. The
+      -- runtime resolution maps label → current model id via the
+      -- MODEL_CHOICES table in src/bot.js.
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id TEXT PRIMARY KEY,
+        preferred_model TEXT,
+        updated_at INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 for (const m of migrations) {

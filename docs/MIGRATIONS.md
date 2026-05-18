@@ -44,6 +44,7 @@ update this file in the same PR.
 | `007_turns_lookup_indexes` | Indexes on `turns(user_message_id)` and `turns(assistant_message_id)` for the embedder's LEFT JOIN. |
 | `008_messages_discord_id_index` | Partial index on `messages(discord_message_id) WHERE role='assistant'` for reaction-event lookups. |
 | `009_turns_user_time_index` | `turns(user_id, created_at DESC)` for the budget-cap query. |
+| `010_user_preferences` | The `user_preferences` table (one row per user) backing `/model`. Stores a short label (`sonnet`/`opus`/`haiku`) rather than the full model id so a future model-version bump doesn't require migrating saved preferences. |
 
 ### Adding a migration
 

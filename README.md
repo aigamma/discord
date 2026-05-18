@@ -30,6 +30,7 @@ be forked.
 | `/help` | Compact, ephemeral reference card for every public command (operator surface appended when the caller is the owner). |
 | `/whoami` | Self-introspection: your activity, spend, feedback you gave, and saved notes. Ephemeral. |
 | `/stats [hours]` | Channel-level snapshot: turns, distinct askers, top askers, top tools, cost. Default lookback 168h. |
+| `/model <show\|set\|clear>` | Per-user default model preference. Per-turn `/ask model:<choice>` always overrides. Ephemeral. |
 | `/admin <subcommand>` | Owner-gated: `rebuild-embeddings`, `backup`, `reset-rate-limit`, `feedback`. |
 | 👍 / 👎 reaction | Capture quality feedback on assistant messages; rolls up in `/usage` and `/admin feedback`. |
 

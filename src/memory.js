@@ -794,6 +794,52 @@ const selectChannelTotalAllTime = db.prepare(`
   SELECT COUNT(*) AS n FROM messages WHERE channel_id = ?
 `);
 
+// ---- Per-user model preference (drives /model) -------------------------
+// Stored as a short label (sonnet|opus|haiku) — see migration 010 in
+// db.js for the rationale. Callers in bot.js resolve the label to the
+// current model id via MODEL_CHOICES.
+
+const ALLOWED_MODEL_LABELS = new Set(['sonnet', 'opus', 'haiku']);
+
+const selectUserPreference = db.prepare(`
+  SELECT preferred_model, updated_at FROM user_preferences WHERE user_id = ?
+`);
+const upsertUserPreference = db.prepare(`
+  INSERT INTO user_preferences (user_id, preferred_model, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preferred_model = excluded.preferred_model,
+      updated_at = excluded.updated_at
+`);
+const deleteUserPreference = db.prepare(`
+  DELETE FROM user_preferences WHERE user_id = ?
+`);
+
+export function getUserModelPreference(userId) {
+  if (!userId) return null;
+  const row = selectUserPreference.get(userId);
+  return row?.preferred_model || null;
+}
+
+export function setUserModelPreference({ userId, label }) {
+  if (!userId) return { ok: false, reason: 'no_user' };
+  // Validate at the data layer too — bot.js gates the choice via
+  // Discord's addChoices, but a future caller (admin tool, migration
+  // script, REST endpoint) could pass an arbitrary string. Keep the
+  // table consistent.
+  if (!ALLOWED_MODEL_LABELS.has(label)) {
+    return { ok: false, reason: 'invalid_label', allowed: [...ALLOWED_MODEL_LABELS] };
+  }
+  upsertUserPreference.run(userId, label, Date.now());
+  return { ok: true, label };
+}
+
+export function clearUserModelPreference(userId) {
+  if (!userId) return 0;
+  const r = deleteUserPreference.run(userId);
+  return Number(r.changes);
+}
+
 export function channelStats(channelId, hours = 168) {
   const since = Date.now() - hours * 3600 * 1000;
   const totals = selectChannelTotals.get(channelId, since) || {};

@@ -39,6 +39,7 @@ Guild-scoped registration is instant; global takes ~1h to propagate.
 | `/help` | compact command reference | ephemeral | no |
 | `/whoami` | caller's activity, spend, feedback, notes | ephemeral | no |
 | `/stats` | channel-level usage snapshot | public reply | no |
+| `/model <show\|set\|clear>` | per-user default model preference | ephemeral | no |
 | `/admin <subcommand>` | rebuild / backup / reset / feedback | ephemeral | yes |
 | 👍 / 👎 reaction | feedback on a bot reply | — | no |
 
@@ -336,6 +337,36 @@ data is channel-scoped so there's no privacy concern.
 
 Public reply. Use for "how active is this channel?" without leaking
 per-user spend (that's owner-only on `/usage`).
+
+---
+
+## `/model`
+
+Per-user default model preference. Saved per Discord user id in the
+`user_preferences` table (migration 010). Three subcommands keep the
+surface narrow:
+
+| Subcommand | Options | What it does |
+|---|---|---|
+| `show` | — | Displays the saved label (or "no preference" with the server default). |
+| `set` | `choice:<sonnet\|opus\|haiku>` (required) | Saves the label. Validated at the data layer; an invalid choice is rejected. |
+| `clear` | — | Removes the row so the server default reasserts. |
+
+**Resolution order**, applied on every `/ask` and every `@mention` in
+`src/bot.js resolveModelForCaller`:
+
+1. **Explicit per-turn override** — `/ask model:<choice>`. Wins
+   everything else.
+2. **Saved preference** — the row in `user_preferences`.
+3. **Server default** — `ANTHROPIC_MODEL` (or its built-in default of
+   `claude-sonnet-4-6`).
+
+The label is stored rather than the full model id so a future
+version bump (e.g. `claude-sonnet-4-6` → `claude-sonnet-4-7`) does not
+require migrating every saved preference. The label → id map is in
+`MODEL_CHOICES` at the top of `src/bot.js`.
+
+All `/model` responses are ephemeral (this is personal config).
 
 ---
 

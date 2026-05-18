@@ -22,6 +22,7 @@ const {
   attachDiscordMessageId, findAssistantMessage,
   loadChannelHistoryForSummary,
   userActivitySummary, channelStats,
+  getUserModelPreference, setUserModelPreference, clearUserModelPreference,
 } = await import('../src/memory.js');
 
 const ch = 'mem-test-' + Date.now();
@@ -346,6 +347,58 @@ test('memory: channelStats does not include other channels\' turns', () => {
   assert.equal(s.distinct_askers, 1);
   assert.equal(s.top_askers.length, 1);
   assert.equal(s.top_askers[0].user_id, 'cs-iso-user');
+});
+
+test('memory: user model preference set / get / clear roundtrip', () => {
+  const u = 'mp-roundtrip-' + Date.now();
+  assert.equal(getUserModelPreference(u), null, 'no preference before set');
+
+  const r = setUserModelPreference({ userId: u, label: 'opus' });
+  assert.equal(r.ok, true);
+  assert.equal(r.label, 'opus');
+  assert.equal(getUserModelPreference(u), 'opus');
+
+  // Re-setting upserts in place, not duplicating. Verify by setting a
+  // different label and reading back the new value.
+  setUserModelPreference({ userId: u, label: 'haiku' });
+  assert.equal(getUserModelPreference(u), 'haiku');
+
+  const cleared = clearUserModelPreference(u);
+  assert.equal(cleared, 1);
+  assert.equal(getUserModelPreference(u), null, 'no preference after clear');
+});
+
+test('memory: user model preference rejects invalid labels', () => {
+  const u = 'mp-invalid-' + Date.now();
+  const r = setUserModelPreference({ userId: u, label: 'gpt-4' });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'invalid_label');
+  assert.ok(Array.isArray(r.allowed));
+  assert.ok(r.allowed.includes('sonnet'));
+  assert.equal(getUserModelPreference(u), null, 'no row written on invalid label');
+});
+
+test('memory: user model preference: isolation across users', () => {
+  const a = 'mp-iso-a-' + Date.now();
+  const b = 'mp-iso-b-' + Date.now();
+  setUserModelPreference({ userId: a, label: 'sonnet' });
+  setUserModelPreference({ userId: b, label: 'opus' });
+  assert.equal(getUserModelPreference(a), 'sonnet');
+  assert.equal(getUserModelPreference(b), 'opus');
+  clearUserModelPreference(a);
+  // Clearing a leaves b intact.
+  assert.equal(getUserModelPreference(a), null);
+  assert.equal(getUserModelPreference(b), 'opus');
+});
+
+test('memory: user model preference: null/missing user id treated as no-op', () => {
+  assert.equal(getUserModelPreference(null), null);
+  assert.equal(getUserModelPreference(undefined), null);
+  assert.equal(getUserModelPreference(''), null);
+  const r = setUserModelPreference({ userId: null, label: 'sonnet' });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'no_user');
+  assert.equal(clearUserModelPreference(null), 0);
 });
 
 test('percentile: empty array returns null', () => {

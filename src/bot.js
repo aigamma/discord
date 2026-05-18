@@ -18,14 +18,17 @@ import {
   attachDiscordMessageId,
   channelStats,
   clearShortTermContext,
+  clearUserModelPreference,
   clearUserNotes,
   deleteUserNote,
   exportChannel,
   feedbackCounts,
   findAssistantMessage,
+  getUserModelPreference,
   listUserNotes,
   recordFeedback,
   removeFeedback,
+  setUserModelPreference,
   totalMessageCount,
   usageSummary,
   userActivitySummary,
@@ -51,6 +54,28 @@ const MODEL_CHOICES = {
   opus: 'claude-opus-4-7',
   haiku: 'claude-haiku-4-5-20251001',
 };
+
+// Resolution chain for the model used on a turn:
+//   1. Explicit per-turn override from /ask model:<label> (or null for
+//      @bot mentions, which don't carry a model arg).
+//   2. The caller's saved /model preference, if any.
+//   3. null — agent.js will fall back to config.anthropic.model.
+//
+// Returns either a model id (claude-sonnet-4-6, etc.) or null. Validation
+// for the saved preference label happens at the memory layer; an
+// unknown label silently falls through to step 3 so a forward-incompat
+// label saved by a future bot version doesn't break the current one.
+function resolveModelForCaller(userId, perTurnLabel) {
+  if (perTurnLabel) {
+    const explicit = MODEL_CHOICES[perTurnLabel];
+    if (explicit) return explicit;
+  }
+  const savedLabel = getUserModelPreference(userId);
+  if (savedLabel && MODEL_CHOICES[savedLabel]) {
+    return MODEL_CHOICES[savedLabel];
+  }
+  return null;
+}
 
 const FEEDBACK_EMOJI = {
   '👍': 'up',
@@ -80,7 +105,9 @@ function isMultiUserChannel(channel) {
 async function handleAsk(interaction) {
   const question = interaction.options.getString('question', true).trim();
   const modelKey = interaction.options.getString('model') || null;
-  const modelOverride = modelKey ? MODEL_CHOICES[modelKey] : null;
+  // Resolve the effective model with the chain: per-turn override →
+  // saved /model preference → null (agent falls back to default).
+  const modelOverride = resolveModelForCaller(interaction.user.id, modelKey);
 
   if (!question) {
     await interaction.reply({ content: 'Empty question.', flags: MessageFlags.Ephemeral });
@@ -768,6 +795,61 @@ async function handleWhoAmI(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+async function handleModel(interaction) {
+  // Per-user model preference. Three subcommands keep the surface
+  // narrow: `show` displays the saved label, `set` writes one of the
+  // valid labels, `clear` removes the row so the server default
+  // reasserts. Always ephemeral — this is personal config.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const sub = interaction.options.getSubcommand();
+  const userId = interaction.user.id;
+  const serverDefault = config.anthropic.model;
+
+  if (sub === 'show') {
+    const saved = getUserModelPreference(userId);
+    if (!saved) {
+      await interaction.editReply(
+        `You have no saved preference. Every turn uses the server default \`${serverDefault}\`. ` +
+        `Set one with \`/model set choice:<sonnet|opus|haiku>\`, or override per-turn via \`/ask model:<choice>\`.`
+      );
+      return;
+    }
+    const resolved = MODEL_CHOICES[saved] || '(unknown — label saved by a different bot version)';
+    await interaction.editReply(
+      `Your saved preference is \`${saved}\` → \`${resolved}\`. ` +
+      `Clear it with \`/model clear\` to revert to the server default \`${serverDefault}\`. ` +
+      `Per-turn \`/ask model:<choice>\` still overrides this.`
+    );
+    return;
+  }
+
+  if (sub === 'set') {
+    const label = interaction.options.getString('choice', true);
+    const r = setUserModelPreference({ userId, label });
+    if (!r.ok) {
+      await interaction.editReply(
+        `Invalid choice. Allowed labels: ${r.allowed?.join(', ') || 'sonnet, opus, haiku'}.`
+      );
+      return;
+    }
+    const resolved = MODEL_CHOICES[label];
+    await interaction.editReply(
+      `Saved. \`/ask\` and \`@mention\` will now use \`${label}\` → \`${resolved}\` unless you pass \`/ask model:<other>\` for a single turn.`
+    );
+    return;
+  }
+
+  if (sub === 'clear') {
+    const cleared = clearUserModelPreference(userId);
+    await interaction.editReply(
+      cleared > 0
+        ? `Cleared. The server default \`${serverDefault}\` applies again.`
+        : `No saved preference to clear. The server default \`${serverDefault}\` was already in effect.`
+    );
+    return;
+  }
+}
+
 async function handleStats(interaction) {
   // Channel-level snapshot. Public reply (anyone in the channel can run
   // it; the data is channel-scoped). Distinct from /usage which is
@@ -893,6 +975,7 @@ async function handleSlashCommand(interaction) {
     case 'help':      return handleHelp(interaction);
     case 'whoami':    return handleWhoAmI(interaction);
     case 'stats':     return handleStats(interaction);
+    case 'model':     return handleModel(interaction);
     case 'remember':       return handleRemember(interaction);
     case 'notes':          return handleListNotes(interaction);
     case 'forget-notes':   return handleForgetNotes(interaction);
@@ -1003,6 +1086,11 @@ async function handleMention(message, clientId) {
   });
 
   try {
+    // @mention doesn't carry a model: arg the way /ask does, so the
+    // per-turn label is always null; the saved /model preference is
+    // the only opt-in lever. Falls through to config default when no
+    // preference is set.
+    const modelOverride = resolveModelForCaller(message.author.id, null);
     const result = await answer({
       channelId: message.channelId,
       guildId: message.guildId,
@@ -1011,6 +1099,7 @@ async function handleMention(message, clientId) {
       discordMessageId: message.id,
       isMultiUser: isMultiUserChannel(message.channel),
       userMessage: question,
+      modelOverride,
       onProgress: (text) => reporter.update(text),
       onToolStart: (names) => reporter.note(`_calling: ${names.join(', ')}_`),
     });

@@ -97,6 +97,31 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('model')
+    .setDescription('Set or clear your default model for /ask and @mention (ephemeral)')
+    .addSubcommand((s) =>
+      s.setName('show').setDescription('Show your current saved preference')
+    )
+    .addSubcommand((s) =>
+      s.setName('set')
+        .setDescription('Save a preferred model for every future /ask and @mention')
+        .addStringOption((opt) =>
+          opt
+            .setName('choice')
+            .setDescription('Which model to use as your default')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Sonnet 4.6 (default, fast)', value: 'sonnet' },
+              { name: 'Opus 4.7 (deeper reasoning, 5x cost)', value: 'opus' },
+              { name: 'Haiku 4.5 (fastest, cheapest)', value: 'haiku' }
+            )
+        )
+    )
+    .addSubcommand((s) =>
+      s.setName('clear').setDescription('Remove your saved preference; revert to the server default')
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('remember')
     .setDescription('Save a persistent note about yourself (the bot will use it on every future turn)')
     .addStringOption((opt) =>
