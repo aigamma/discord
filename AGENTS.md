@@ -332,6 +332,7 @@ These rules exist because the alternative cost real time in the past.
 | How to debug a misbehaving production instance | `docs/OPERATIONS.md` |
 | How to wire the bot to a brand-new Supabase / DuckDB / Voyage setup | `docs/DATA_SETUP.md` |
 | Why a specific safety guard exists | `SECURITY.md` |
+| How to fork the bot for a different community | `docs/FORKING.md` |
 | Examples of what good bot output looks like | `docs/EXAMPLES.md` |
 | Recent changes and rationale | `CHANGELOG.md` + `git log` |
 
