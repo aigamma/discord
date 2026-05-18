@@ -21,6 +21,7 @@ const {
   recordFeedback, feedbackCounts,
   attachDiscordMessageId, findAssistantMessage,
   loadChannelHistoryForSummary,
+  userActivitySummary, channelStats,
 } = await import('../src/memory.js');
 
 const ch = 'mem-test-' + Date.now();
@@ -231,6 +232,120 @@ test('memory: loadChannelHistoryForSummary returns oldest-first within the cap',
   assert.equal(hist.length, 4);
   // First should be older than last
   assert.ok(hist[0].created_at <= hist[hist.length - 1].created_at);
+});
+
+test('memory: userActivitySummary scopes to a single user over the window', () => {
+  // Persist two distinct users' activity, then read each back. The
+  // helper must not bleed totals across users (that would be a privacy
+  // leak — /whoami shows the caller their own activity, not the
+  // server's).
+  const a = 'wa-user-a-' + Date.now();
+  const b = 'wa-user-b-' + Date.now();
+  for (const [user, n] of [[a, 3], [b, 1]]) {
+    for (let i = 0; i < n; i++) {
+      const uM = persistMessage({ channelId: ch, userId: user, role: 'user', content: 'q' });
+      const aM = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'a' });
+      persistTurn({
+        channelId: ch, userId: user,
+        userMessageId: uM, assistantMessageId: aM,
+        model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+        inputTokens: 10, outputTokens: 5, cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0, costUsd: 0.01, latencyMs: 500, error: null,
+      });
+    }
+  }
+  const sumA = userActivitySummary(a, 24);
+  const sumB = userActivitySummary(b, 24);
+  assert.equal(sumA.turns, 3);
+  assert.equal(sumB.turns, 1);
+  // Cost across the three a-turns should be 0.03 (within float tolerance).
+  assert.ok(sumA.cost_usd >= 0.03 - 1e-6);
+  // Last-turn timestamp is set (ms since epoch).
+  assert.ok(sumA.last_turn_at != null && sumA.last_turn_at > 0);
+});
+
+test('memory: userActivitySummary counts feedback the caller gave', () => {
+  const u = 'wa-fb-' + Date.now();
+  // Need a target assistant message for the feedback FK to point at.
+  const aM = persistMessage({ channelId: ch, userId: 'bot', role: 'assistant', content: 'rate me' });
+  recordFeedback({ assistantMessageId: aM, userId: u, channelId: ch, sentiment: 'up', emoji: '👍' });
+  const sum = userActivitySummary(u, 24);
+  assert.equal(sum.feedback_given.up, 1);
+  assert.equal(sum.feedback_given.down, 0);
+});
+
+test('memory: channelStats reports turns, distinct askers, and top askers per channel', () => {
+  // Use a fresh channel id so other tests' activity doesn't contaminate
+  // the totals. Three askers, with one of them dominating turn count so
+  // the top-asker ordering can be verified.
+  const csCh = 'cs-' + Date.now();
+  const heavy = 'cs-heavy';
+  const lighter = ['cs-l1', 'cs-l2'];
+  for (let i = 0; i < 5; i++) {
+    const uM = persistMessage({ channelId: csCh, userId: heavy, role: 'user', content: 'q' });
+    const aM = persistMessage({ channelId: csCh, userId: 'bot', role: 'assistant', content: 'a' });
+    persistTurn({
+      channelId: csCh, userId: heavy,
+      userMessageId: uM, assistantMessageId: aM,
+      model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+      inputTokens: 5, outputTokens: 3, cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0, costUsd: 0.005, latencyMs: 400, error: null,
+    });
+  }
+  for (const u of lighter) {
+    const uM = persistMessage({ channelId: csCh, userId: u, role: 'user', content: 'q' });
+    const aM = persistMessage({ channelId: csCh, userId: 'bot', role: 'assistant', content: 'a' });
+    persistTurn({
+      channelId: csCh, userId: u,
+      userMessageId: uM, assistantMessageId: aM,
+      model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+      inputTokens: 5, outputTokens: 3, cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0, costUsd: 0.005, latencyMs: 400, error: null,
+    });
+  }
+
+  const s = channelStats(csCh, 24);
+  assert.equal(s.turns, 7);
+  assert.equal(s.distinct_askers, 3);
+  assert.equal(s.top_askers[0].user_id, heavy);
+  assert.equal(s.top_askers[0].turns, 5);
+  // total_messages_all_time counts every persisted row (user + assistant)
+  // in this channel; with 7 turns that's 14 rows.
+  assert.equal(s.total_messages_all_time, 14);
+});
+
+test('memory: channelStats does not include other channels\' turns', () => {
+  // Critical isolation property — /stats should only show this channel's
+  // activity, never a different channel's.
+  const isolated = 'cs-iso-' + Date.now();
+  const otherCh = 'cs-other-' + Date.now();
+
+  const uM = persistMessage({ channelId: isolated, userId: 'cs-iso-user', role: 'user', content: 'q' });
+  const aM = persistMessage({ channelId: isolated, userId: 'bot', role: 'assistant', content: 'a' });
+  persistTurn({
+    channelId: isolated, userId: 'cs-iso-user',
+    userMessageId: uM, assistantMessageId: aM,
+    model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+    inputTokens: 1, outputTokens: 1, cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0, costUsd: 0.001, latencyMs: 100, error: null,
+  });
+
+  // Activity in a different channel that must NOT leak into isolated.
+  const uM2 = persistMessage({ channelId: otherCh, userId: 'cs-other-user', role: 'user', content: 'q' });
+  const aM2 = persistMessage({ channelId: otherCh, userId: 'bot', role: 'assistant', content: 'a' });
+  persistTurn({
+    channelId: otherCh, userId: 'cs-other-user',
+    userMessageId: uM2, assistantMessageId: aM2,
+    model: 'claude-sonnet-4-6', stopReason: 'end_turn', toolRounds: 0,
+    inputTokens: 1, outputTokens: 1, cacheCreationInputTokens: 0,
+    cacheReadInputTokens: 0, costUsd: 0.001, latencyMs: 100, error: null,
+  });
+
+  const s = channelStats(isolated, 24);
+  assert.equal(s.turns, 1);
+  assert.equal(s.distinct_askers, 1);
+  assert.equal(s.top_askers.length, 1);
+  assert.equal(s.top_askers[0].user_id, 'cs-iso-user');
 });
 
 test('percentile: empty array returns null', () => {

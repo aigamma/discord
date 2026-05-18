@@ -16,6 +16,7 @@ import { config } from './config.js';
 import {
   addUserNote,
   attachDiscordMessageId,
+  channelStats,
   clearShortTermContext,
   clearUserNotes,
   deleteUserNote,
@@ -27,6 +28,7 @@ import {
   removeFeedback,
   totalMessageCount,
   usageSummary,
+  userActivitySummary,
 } from './memory.js';
 import { execute as searchHistory } from './tools/searchChatHistory.js';
 import { check as checkRateLimit } from './rateLimiter.js';
@@ -628,6 +630,196 @@ async function handleAbout(interaction) {
   await interaction.reply({ embeds: [embed] });
 }
 
+async function handleHelp(interaction) {
+  // Compact command reference. Distinct from /about (which is a marketing
+  // tour for new members): /help is the no-fluff card a returning user
+  // pulls up to remember the exact name and shape of a command. Ephemeral
+  // so it doesn't clutter the channel; lists every public command on a
+  // single short line each.
+  const embed = new EmbedBuilder()
+    .setTitle('Commands')
+    .setColor(0x4a9eff)
+    .setDescription('Ask anything with `/ask` or by mentioning the bot. Everything else is convenience.')
+    .addFields(
+      {
+        name: 'Ask',
+        value: [
+          '`/ask question:<text> [model:sonnet|opus|haiku]` — one turn, tool use enabled',
+          '`@bot <text>` — same path as `/ask`, anywhere the bot can read',
+          '`/summarize [messages:N]` — brief of the last N channel messages',
+        ].join('\n'),
+      },
+      {
+        name: 'Search and recall',
+        value: [
+          '`/search query:<text> [scope:channel|all] [limit:N]` — semantic recall',
+          '`/forget` — clear this channel\'s short-term context window',
+        ].join('\n'),
+      },
+      {
+        name: 'Personal context',
+        value: [
+          '`/remember note:<text>` — save a persistent note (cap 12 × 280 chars)',
+          '`/notes` — list your saved notes',
+          '`/forget-note number:<N>` — remove one note by its `/notes` number',
+          '`/forget-notes` — clear all your saved notes',
+          '`/whoami` — your activity, spend, feedback, and saved notes',
+        ].join('\n'),
+      },
+      {
+        name: 'Channel and bot state',
+        value: [
+          '`/stats` — channel-level usage snapshot (turns, askers, top tools)',
+          '`/usage [hours:N]` — global cost / token / latency summary',
+          '`/health` — subsystem reachability',
+          '`/export` — download this channel\'s persisted Q&A as JSON',
+          '`/about` — capability tour',
+        ].join('\n'),
+      },
+      {
+        name: 'Feedback',
+        value: 'React 👍 or 👎 on any reply to flag quality. Surfaces in `/usage` and `/admin feedback`.',
+      },
+    );
+  if (isOwner(interaction.user.id)) {
+    embed.addFields({
+      name: 'Operator',
+      value: '`/admin rebuild-embeddings` · `/admin backup` · `/admin reset-rate-limit user:<u>` · `/admin feedback [hours:N]`',
+    });
+  }
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+async function handleWhoAmI(interaction) {
+  // Self-introspection card. Useful for a member to see exactly what the
+  // bot has remembered about them and what they've spent. Ephemeral —
+  // this is personal data and shouldn't broadcast to the channel.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const userId = interaction.user.id;
+  const notes = listUserNotes(userId);
+  const activity24 = userActivitySummary(userId, 24);
+  const activity7d = userActivitySummary(userId, 24 * 7);
+  // 30 days isn't really 'recent' — but it gives the user a sense of
+  // their total engagement without leaking the whole audit log. The
+  // last_turn_at field (over all time) anchors the upper bound.
+  const activity30d = userActivitySummary(userId, 24 * 30);
+
+  const lastTurnLabel = activity30d.last_turn_at
+    ? new Date(activity30d.last_turn_at).toISOString().slice(0, 16).replace('T', ' ')
+    : 'never';
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${interaction.user.username} — your bot context`)
+    .setColor(0x4a9eff)
+    .addFields(
+      {
+        name: 'Activity',
+        value: [
+          `Last turn: \`${lastTurnLabel}\` UTC`,
+          `24h: ${activity24.turns} turn(s), ${formatUsd(activity24.cost_usd ?? 0)}`,
+          `7d: ${activity7d.turns} turn(s), ${formatUsd(activity7d.cost_usd ?? 0)}`,
+          `30d: ${activity30d.turns} turn(s), ${formatUsd(activity30d.cost_usd ?? 0)}, ${(activity30d.tokens ?? 0).toLocaleString()} tokens`,
+        ].join('\n'),
+      },
+      {
+        name: 'Feedback you gave (7d)',
+        value: `${activity7d.feedback_given.up} 👍 · ${activity7d.feedback_given.down} 👎`,
+        inline: true,
+      },
+    );
+
+  if (isBudgetEnabled()) {
+    const bud = checkBudget(userId);
+    embed.addFields({
+      name: 'Daily cap',
+      value: `$${bud.spent.toFixed(4)} / $${bud.cap.toFixed(2)} (resets in ${Math.ceil(bud.reset_in_seconds / 3600)}h)`,
+      inline: true,
+    });
+  }
+
+  if (notes.length === 0) {
+    embed.addFields({
+      name: `Saved notes (0)`,
+      value: 'None. Add one with `/remember note:<text>`.',
+    });
+  } else {
+    // Reuse the same render shape /notes uses so the two surfaces look
+    // identical when the user pulls them up side-by-side. Cap the
+    // rendered block at ~900 chars so embed budget headroom remains
+    // for the other fields.
+    const cap = 900;
+    let body = '';
+    let included = 0;
+    for (let i = 0; i < notes.length; i++) {
+      const line = `${i + 1}. ${notes[i].content}\n`;
+      if (body.length + line.length > cap) break;
+      body += line;
+      included++;
+    }
+    const omitted = notes.length - included;
+    const trailer = omitted > 0 ? `\n_(${omitted} more not shown — see_ \`/notes\`_)_` : '';
+    embed.addFields({
+      name: `Saved notes (${notes.length})`,
+      value: body + trailer,
+    });
+  }
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
+async function handleStats(interaction) {
+  // Channel-level snapshot. Public reply (anyone in the channel can run
+  // it; the data is channel-scoped). Distinct from /usage which is
+  // server-wide and from /whoami which is caller-scoped.
+  await interaction.deferReply();
+  const hours = interaction.options.getInteger('hours') || 168; // 7d default
+  const s = channelStats(interaction.channelId, hours);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Channel stats — last ${hours}h`)
+    .setColor(0x4a9eff)
+    .addFields(
+      { name: 'Turns', value: String(s.turns), inline: true },
+      { name: 'Distinct askers', value: String(s.distinct_askers), inline: true },
+      { name: 'Cost', value: formatUsd(s.cost_usd ?? 0), inline: true },
+      {
+        name: 'Avg latency',
+        value: s.avg_latency_ms ? `${Math.round(s.avg_latency_ms)}ms` : 'n/a',
+        inline: true,
+      },
+      {
+        name: 'Tokens',
+        value: (s.tokens ?? 0).toLocaleString(),
+        inline: true,
+      },
+      {
+        name: 'Channel persisted (all-time)',
+        value: String(s.total_messages_all_time),
+        inline: true,
+      },
+    );
+
+  if (s.top_askers.length) {
+    // Surface user ids as mentions but with the no-ping allowedMentions —
+    // we want the link affordance without firing notifications to top
+    // askers every time someone runs /stats.
+    embed.addFields({
+      name: 'Top askers',
+      value: s.top_askers.map((u) => `<@${u.user_id}> · ${u.turns} turn(s)`).join('\n'),
+    });
+  }
+
+  if (s.top_tools.length) {
+    embed.addFields({
+      name: 'Top tools',
+      value: s.top_tools.slice(0, 8).map((t) => `\`${t.tool}\` · ${t.calls} call(s)`).join('\n'),
+    });
+  }
+
+  await interaction.editReply({ embeds: [embed], allowedMentions: SAFE_ALLOWED_MENTIONS });
+}
+
 async function handleAdmin(interaction) {
   if (!isOwner(interaction.user.id)) {
     await interaction.reply({ content: 'Not authorized.', flags: MessageFlags.Ephemeral });
@@ -698,6 +890,9 @@ async function handleSlashCommand(interaction) {
     case 'summarize': return handleSummarize(interaction);
     case 'admin':     return handleAdmin(interaction);
     case 'about':     return handleAbout(interaction);
+    case 'help':      return handleHelp(interaction);
+    case 'whoami':    return handleWhoAmI(interaction);
+    case 'stats':     return handleStats(interaction);
     case 'remember':       return handleRemember(interaction);
     case 'notes':          return handleListNotes(interaction);
     case 'forget-notes':   return handleForgetNotes(interaction);

@@ -36,6 +36,9 @@ Guild-scoped registration is instant; global takes ~1h to propagate.
 | `/usage` | cost / token / latency summary | ephemeral | per-user breakdown is owner-only |
 | `/health` | subsystem reachability | ephemeral | no |
 | `/about` | capability tour | public reply | no |
+| `/help` | compact command reference | ephemeral | no |
+| `/whoami` | caller's activity, spend, feedback, notes | ephemeral | no |
+| `/stats` | channel-level usage snapshot | public reply | no |
 | `/admin <subcommand>` | rebuild / backup / reset / feedback | ephemeral | yes |
 | 👍 / 👎 reaction | feedback on a bot reply | — | no |
 
@@ -278,6 +281,61 @@ without Supabase doesn't see live-data tools advertised that don't exist.
 - Footer with the operator handle + name from env.
 
 Public reply. No options.
+
+---
+
+## `/help`
+
+Compact command reference. Distinct from `/about` (which is the
+marketing tour for new members): `/help` is the no-fluff card a
+returning user pulls up to remember the exact name and shape of a
+command. Lists every public command on a single short line each.
+
+If the caller is the operator (`OWNER_DISCORD_USER_ID`), the `/admin`
+subcommand surface is appended.
+
+Ephemeral. No options.
+
+---
+
+## `/whoami`
+
+Self-introspection card. The caller sees:
+
+- **Activity**: last-turn timestamp, plus 24h / 7d / 30d turn counts and
+  cost.
+- **Feedback given**: the up/down counts the caller has emitted over 7d
+  (not feedback received — that's an owner-facing concept).
+- **Daily cap**: spent / cap / reset (only when
+  `DAILY_USER_COST_CAP_USD > 0`).
+- **Saved notes**: numbered list with the same shape as `/notes`,
+  truncated if it would exceed embed budget.
+
+Ephemeral, no options. Read-only — no side effects.
+
+---
+
+## `/stats`
+
+Channel-level usage snapshot. Anyone in the channel can run it; the
+data is channel-scoped so there's no privacy concern.
+
+**Options:**
+
+| Name | Type | Required | Constraints |
+|---|---|---|---|
+| `hours` | int | no | `[1, 8760]`. Default 168 (7 days). |
+
+**Renders:**
+
+- Turns, distinct askers, cost, average latency, total tokens.
+- Channel persisted count (all-time, across the full retention).
+- Top 5 askers by turn count (rendered as `<@id>` with no-ping
+  `allowedMentions`, so the link affordance shows without notifying).
+- Top 8 tools by call count.
+
+Public reply. Use for "how active is this channel?" without leaking
+per-user spend (that's owner-only on `/usage`).
 
 ---
 

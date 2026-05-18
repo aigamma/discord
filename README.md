@@ -27,6 +27,9 @@ be forked.
 | `/usage [hours]` | Ephemeral cost / token / latency summary (p50, p95, prompt-cache hit ratio) with per-model, per-tool, feedback breakdowns. Owner-only: per-user spend breakdown. |
 | `/health` | Process state: pgvector reachability + latency, embed and sync queue depths, embed/sync failure counters (split), DuckDB shards, tool cache stats, SQLite integrity, lifecycle drain status. |
 | `/about` | Capability tour for new community members. |
+| `/help` | Compact, ephemeral reference card for every public command (operator surface appended when the caller is the owner). |
+| `/whoami` | Self-introspection: your activity, spend, feedback you gave, and saved notes. Ephemeral. |
+| `/stats [hours]` | Channel-level snapshot: turns, distinct askers, top askers, top tools, cost. Default lookback 168h. |
 | `/admin <subcommand>` | Owner-gated: `rebuild-embeddings`, `backup`, `reset-rate-limit`, `feedback`. |
 | 👍 / 👎 reaction | Capture quality feedback on assistant messages; rolls up in `/usage` and `/admin feedback`. |
 

@@ -78,6 +78,25 @@ const commands = [
     .setDescription('What this bot can do')
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Compact reference for every bot command (ephemeral)')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('whoami')
+    .setDescription('Your activity, spend, feedback given, and saved notes (ephemeral)')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('stats')
+    .setDescription("Channel-level usage snapshot: turns, askers, top tools")
+    .addIntegerOption((opt) =>
+      opt
+        .setName('hours')
+        .setDescription('Lookback window in hours (default 168 = 7 days)')
+        .setMinValue(1)
+        .setMaxValue(8760)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('remember')
     .setDescription('Save a persistent note about yourself (the bot will use it on every future turn)')
     .addStringOption((opt) =>

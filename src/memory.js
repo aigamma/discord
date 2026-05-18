@@ -700,3 +700,121 @@ export function usageSummary(hours = 24) {
     by_tool: byTool,
   };
 }
+
+// ---- Per-user activity (drives /whoami) --------------------------------
+// Caller's own activity over a window. Mirrors usageSummary's shape but
+// scoped to a single user so /whoami can render an at-a-glance card
+// without an owner-only data leak.
+
+const selectUserActivity = db.prepare(`
+  SELECT
+    COUNT(*) AS turns,
+    SUM(cost_usd) AS cost_usd,
+    SUM(input_tokens + output_tokens) AS tokens,
+    AVG(latency_ms) AS avg_latency_ms
+  FROM turns
+  WHERE user_id = ? AND created_at >= ?
+`);
+
+const selectUserFeedbackGiven = db.prepare(`
+  SELECT sentiment, COUNT(*) AS n
+  FROM feedback
+  WHERE user_id = ? AND created_at >= ?
+  GROUP BY sentiment
+`);
+
+const selectUserLastTurn = db.prepare(`
+  SELECT MAX(created_at) AS last_at FROM turns WHERE user_id = ?
+`);
+
+export function userActivitySummary(userId, hours = 168) {
+  const since = Date.now() - hours * 3600 * 1000;
+  const activity = selectUserActivity.get(userId, since);
+  const feedback = selectUserFeedbackGiven.all(userId, since);
+  const fb = { up: 0, down: 0 };
+  for (const r of feedback) fb[r.sentiment] = r.n;
+  const lastRow = selectUserLastTurn.get(userId);
+  return {
+    user_id: userId,
+    window_hours: hours,
+    turns: activity?.turns ?? 0,
+    cost_usd: activity?.cost_usd ?? 0,
+    tokens: activity?.tokens ?? 0,
+    avg_latency_ms: activity?.avg_latency_ms ?? null,
+    feedback_given: fb,
+    last_turn_at: lastRow?.last_at ?? null,
+  };
+}
+
+// ---- Per-channel stats (drives /stats) ----------------------------------
+// Channel-level rollup so anyone in the channel can see a snapshot of how
+// the bot is being used here. Distinct from /usage (which is server-wide)
+// and /whoami (which is user-scoped).
+
+const selectChannelTotals = db.prepare(`
+  SELECT
+    COUNT(*) AS turns,
+    COUNT(DISTINCT user_id) AS askers,
+    SUM(cost_usd) AS cost_usd,
+    SUM(input_tokens + output_tokens) AS tokens,
+    AVG(latency_ms) AS avg_latency_ms
+  FROM turns
+  WHERE channel_id = ? AND created_at >= ?
+`);
+
+const selectChannelTopAskers = db.prepare(`
+  SELECT user_id, COUNT(*) AS turns
+  FROM turns
+  WHERE channel_id = ? AND created_at >= ?
+  GROUP BY user_id
+  ORDER BY turns DESC
+  LIMIT 5
+`);
+
+// Tool counts scoped to a channel. Joins messages (which carry the
+// channel_id and the tool_uses JSON) on the audit row's
+// assistant_message_id so the channel filter applies before json_each
+// expands the array. Falls back to an empty array if json_each is
+// missing (old SQLite), matching usageSummary's behavior.
+const selectChannelToolCounts = db.prepare(`
+  SELECT
+    j.value->>'name' AS tool,
+    COUNT(*) AS calls
+  FROM messages m, json_each(m.tool_uses) j
+  WHERE m.role = 'assistant'
+    AND m.tool_uses IS NOT NULL
+    AND m.channel_id = ?
+    AND m.created_at >= ?
+  GROUP BY tool
+  ORDER BY calls DESC
+  LIMIT 10
+`);
+
+const selectChannelTotalAllTime = db.prepare(`
+  SELECT COUNT(*) AS n FROM messages WHERE channel_id = ?
+`);
+
+export function channelStats(channelId, hours = 168) {
+  const since = Date.now() - hours * 3600 * 1000;
+  const totals = selectChannelTotals.get(channelId, since) || {};
+  const askers = selectChannelTopAskers.all(channelId, since);
+  let tools;
+  try {
+    tools = selectChannelToolCounts.all(channelId, since);
+  } catch {
+    tools = [];
+  }
+  const allTime = selectChannelTotalAllTime.get(channelId)?.n ?? 0;
+  return {
+    channel_id: channelId,
+    window_hours: hours,
+    turns: totals.turns ?? 0,
+    distinct_askers: totals.askers ?? 0,
+    cost_usd: totals.cost_usd ?? 0,
+    tokens: totals.tokens ?? 0,
+    avg_latency_ms: totals.avg_latency_ms ?? null,
+    top_askers: askers,
+    top_tools: tools,
+    total_messages_all_time: allTime,
+  };
+}
