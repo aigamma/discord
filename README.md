@@ -267,6 +267,8 @@ For deeper context than this README covers:
 - **`docs/CONFIG.md`** — environment-variable reference: every key the bot reads, with type, default, range, and downstream effect.
 - **`docs/COMMANDS.md`** — Discord command surface reference: every slash command, the mention surface, and reaction feedback.
 - **`docs/TOOLS.md`** — tool catalog reference: every model-callable tool with input schema, output shape, gating, and cache TTL.
+- **`docs/DATA_SETUP.md`** — step-by-step hookup guide: Discord → Anthropic → Voyage → Supabase (market data + pgvector) → DuckDB shards, with end-to-end verification.
+- **`docs/OPERATIONS.md`** — runbook for daily operations and incident response, keyed on observable symptoms from `/health`, `/usage`, and the logs.
 - **`docs/EXAMPLES.md`** — illustrative bot output across live-market, memory-recall, and refusal scenarios.
 - **`CLAUDE.md`** — short-form architectural reference. Same shape as `ARCHITECTURE.md`, condensed for a quick orientation.
 - **`SECURITY.md`** — threat model, secrets posture, the three-layer DuckDB defense, prompt-injection scope clamping.
