@@ -52,19 +52,25 @@ function formatTranscript(rows) {
   return lines.join('\n');
 }
 
-export async function summarize({ channelId, guildId = null, userId = null, lookbackMessages = 100, onProgress = null }) {
+export async function summarize({ channelId, guildId = null, userId = null, lookbackMessages = 100, modelOverride = null, onProgress = null }) {
   if (isShuttingDown()) {
     throw new Error('Bot is shutting down; new requests refused.');
   }
   const releaseWork = beginWork();
   try {
-    return await summarizeInner({ channelId, guildId, userId, lookbackMessages, onProgress });
+    return await summarizeInner({ channelId, guildId, userId, lookbackMessages, modelOverride, onProgress });
   } finally {
     releaseWork();
   }
 }
 
-async function summarizeInner({ channelId, guildId, userId, lookbackMessages, onProgress }) {
+async function summarizeInner({ channelId, guildId, userId, lookbackMessages, modelOverride, onProgress }) {
+  // Resolve the effective model the same way agent.js does: the caller's
+  // override (which bot.js builds from the /model saved preference) wins,
+  // otherwise the server default. /summarize doesn't carry a per-turn
+  // model: option the way /ask does, so the override here is exclusively
+  // the saved preference.
+  const model = modelOverride || config.anthropic.model;
   const rows = loadChannelHistoryForSummary({ channelId, limit: lookbackMessages });
   if (rows.length === 0) {
     return { text: 'Nothing to summarize. No messages persisted in this channel yet.' };
@@ -77,7 +83,7 @@ async function summarizeInner({ channelId, guildId, userId, lookbackMessages, on
   // from finalMessage, not from the sync return).
   const response = await withAnthropicRetry(async () => {
     const stream = client.messages.stream({
-      model: config.anthropic.model,
+      model: model,
       max_tokens: 1500,
       system: SYSTEM,
       messages: [
@@ -108,11 +114,11 @@ async function summarizeInner({ channelId, guildId, userId, lookbackMessages, on
   }
 
   const latency = Date.now() - t0;
-  const cost = priceUsage(config.anthropic.model, response.usage);
+  const cost = priceUsage(model, response.usage);
   logger.info('summary produced', {
     channel_id: channelId,
     messages_summarized: rows.length,
-    model: config.anthropic.model,
+    model: model,
     cost_usd: cost,
     latency_ms: latency,
   });
@@ -130,7 +136,7 @@ async function summarizeInner({ channelId, guildId, userId, lookbackMessages, on
       const aMid = persistMessage({
         channelId, guildId,
         userId: 'bot', username: 'bot',
-        role: 'assistant', content: text, model: config.anthropic.model,
+        role: 'assistant', content: text, model: model,
         inputTokens: response.usage?.input_tokens ?? null,
         outputTokens: response.usage?.output_tokens ?? null,
         cacheCreationInputTokens: response.usage?.cache_creation_input_tokens ?? null,
@@ -141,7 +147,7 @@ async function summarizeInner({ channelId, guildId, userId, lookbackMessages, on
       persistTurn({
         channelId, userId,
         userMessageId: null, assistantMessageId: aMid,
-        model: config.anthropic.model,
+        model: model,
         stopReason: response.stop_reason || 'end_turn',
         toolRounds: 0,
         inputTokens: response.usage?.input_tokens ?? null,

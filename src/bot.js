@@ -191,11 +191,16 @@ async function handleSummarize(interaction) {
     label: 'summarize',
   });
   try {
+    // Respect the caller's /model preference for summaries too. /summarize
+    // has no per-turn model: option so the preference is the only lever;
+    // null falls through to the server default in summarize.js.
+    const modelOverride = resolveModelForCaller(interaction.user.id, null);
     const result = await summarize({
       channelId: interaction.channelId,
       guildId: interaction.guildId,
       userId: interaction.user.id,
       lookbackMessages: limit,
+      modelOverride,
       onProgress: (text) => reporter.update(text),
     });
     const text = result.text || '_(no summary produced)_';
