@@ -261,8 +261,13 @@ them to return raw chain data.
 
 For deeper context than this README covers:
 
+- **`AGENTS.md`** — orientation doc for AI coding agents working on this repo. Read first if you are an agent picking up a task here; covers what to touch carefully, the test invariants, and where to find each surface's source of truth.
 - **`ARCHITECTURE.md`** — system overview, module map, turn lifecycle, memory model, concurrency, lifecycle/shutdown, observability, retry posture. Start here if you want to understand how every piece fits together.
 - **`DATA_CONTRACTS.md`** — the exact schemas the bot expects from Supabase, Voyage, Anthropic, and DuckDB shards. **Read this before forking** — every column, type, and constraint is a runtime contract. Includes a snap-in guide for mixing your own data layer.
+- **`docs/CONFIG.md`** — environment-variable reference: every key the bot reads, with type, default, range, and downstream effect.
+- **`docs/COMMANDS.md`** — Discord command surface reference: every slash command, the mention surface, and reaction feedback.
+- **`docs/TOOLS.md`** — tool catalog reference: every model-callable tool with input schema, output shape, gating, and cache TTL.
+- **`docs/EXAMPLES.md`** — illustrative bot output across live-market, memory-recall, and refusal scenarios.
 - **`CLAUDE.md`** — short-form architectural reference. Same shape as `ARCHITECTURE.md`, condensed for a quick orientation.
 - **`SECURITY.md`** — threat model, secrets posture, the three-layer DuckDB defense, prompt-injection scope clamping.
 - **`CONTRIBUTING.md`** — workflow, voice, style rules.
